@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useMemo } from 'react';
+import React, { useMemo, useEffect, useCallback, useState } from 'react';
 import {
   ReactFlow,
   Background,
@@ -8,14 +8,15 @@ import {
   MiniMap,
   Panel,
   BackgroundVariant,
+  useReactFlow,
+  ReactFlowProvider,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 
 import { useLogicStore } from '@/store/useLogicStore';
 import { OvalNode, RectangleNode, DiamondNode, ParallelogramNode } from './CustomNodes';
-import { Play, SkipForward, RotateCcw, Bug, FileDown, BrainCircuit, Activity } from 'lucide-react';
+import { Play, SkipForward, RotateCcw, Bug, FileDown, BrainCircuit, Activity, Target } from 'lucide-react';
 import { toPng } from 'html-to-image';
-import { useEffect } from 'react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { playEffect } from '@/hooks/useSoundEffect';
@@ -31,8 +32,9 @@ const nodeTypes = {
   parallelogram: ParallelogramNode,
 };
 
-export default function FlowCanvas() {
-  const [isHudMinimized, setIsHudMinimized] = React.useState(false);
+function FlowInner() {
+  const { fitView } = useReactFlow();
+  const [isHudMinimized, setIsHudMinimized] = useState(false);
   const { 
     nodes, 
     edges, 
@@ -44,10 +46,19 @@ export default function FlowCanvas() {
     nextStep,
     runAnalysis,
     complexityData,
-    bugNodeIds,
     activeNodeId,
     activeEdgeId
   } = useLogicStore();
+
+  const focusStartNode = useCallback(() => {
+    const startNode = nodes.find(n => n.data.label.toLowerCase() === 'start' || n.id === '1');
+    if (startNode) {
+      fitView({ nodes: [startNode], duration: 800, padding: 2 });
+      playEffect('step');
+    } else {
+      fitView({ duration: 800 });
+    }
+  }, [nodes, fitView]);
 
   const defaultEdgeOptions = useMemo(() => ({
     animated: true,
@@ -122,7 +133,6 @@ export default function FlowCanvas() {
 
   return (
     <div className="w-full h-full bg-[#0a0a0a] relative overflow-hidden">
-      {/* BACKGROUND DECORATION - Absolute position to avoid overlap issues */}
       <div className="absolute inset-0 z-0 opacity-20 pointer-events-none">
         <div className="absolute top-0 left-0 w-full h-full bg-[radial-gradient(circle_at_50%_50%,rgba(59,130,246,0.1),transparent_50%)]" />
       </div>
@@ -156,7 +166,6 @@ export default function FlowCanvas() {
           maskColor="rgba(0, 0, 0, 0.1)"
         />
 
-        {/* TOP RIGHT CONTROLS PANEL */}
         <Panel position="top-right" className="bg-slate-900/80 backdrop-blur-md p-3 border border-slate-700 rounded-xl shadow-2xl flex flex-col gap-3 z-50">
           <div className="flex items-center gap-2 border-b border-slate-700 pb-2">
             <button 
@@ -174,6 +183,14 @@ export default function FlowCanvas() {
               className="p-2 bg-slate-800 text-slate-300 rounded-lg hover:bg-slate-700 disabled:opacity-50 transition-all"
             >
               <SkipForward size={18} />
+            </button>
+            <div className="h-6 w-px bg-slate-700 mx-1" />
+            <button 
+              onClick={focusStartNode}
+              className="p-2 bg-blue-500/10 text-blue-400 rounded-lg hover:bg-blue-500/20 transition-all border border-blue-500/20"
+              title="Go to Start"
+            >
+              <Target size={18} />
             </button>
           </div>
 
@@ -194,7 +211,6 @@ export default function FlowCanvas() {
         </Panel>
       </ReactFlow>
 
-      {/* COMPLEXITY HUD - Fixed position OUTSIDE ReactFlow viewport to avoid overlaps */}
       {complexityData && (
         <div className="absolute bottom-6 left-6 z-[100] animate-in fade-in slide-in-from-bottom-4 duration-500">
           <div className={cn(
@@ -266,5 +282,13 @@ export default function FlowCanvas() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function FlowCanvas() {
+  return (
+    <ReactFlowProvider>
+      <FlowInner />
+    </ReactFlowProvider>
   );
 }

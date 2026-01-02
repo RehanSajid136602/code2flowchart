@@ -115,16 +115,24 @@ export const useLogicStore = create<LogicState>((set, get) => ({
       return;
     }
 
-    // Smart Branching: If multiple edges (Decision), prioritize "True/Yes"
+    // Smart Branching: If multiple edges (Decision), follow ONLY the single correct path
     let targetEdge = outgoingEdges[0];
     if (outgoingEdges.length > 1) {
-      const trueEdge = outgoingEdges.find(e => 
-        e.label?.toLowerCase().includes('true') || 
-        e.label?.toLowerCase().includes('yes')
-      );
-      if (trueEdge) targetEdge = trueEdge;
+      // Prioritize "True", "Yes", or labeled success paths
+      const trueEdge = outgoingEdges.find(e => {
+        const label = (e.label || "").toLowerCase();
+        return label.includes('true') || label.includes('yes') || label.includes('success');
+      });
+      
+      if (trueEdge) {
+        targetEdge = trueEdge;
+      } else {
+        // Fallback to the first one if no explicit "true" label found
+        targetEdge = outgoingEdges[0];
+      }
     }
 
+    // Set ONLY the target node and edge as active
     set({ 
       activeNodeId: targetEdge.target, 
       activeEdgeId: targetEdge.id,

@@ -95,13 +95,34 @@ export default function Home() {
   const handlePlayTracer = async () => {
     if (nodes.length === 0) return;
     
-    // Simple BFS/DFS tracer simulation
-    let currentId = nodes[0].id;
-    for (let i = 0; i < nodes.length; i++) {
-      setActiveNodeId(nodes[i].id);
-      await new Promise(r => setTimeout(r, 800));
+    const { setIsTracing, nextStep, isTracing } = useLogicStore.getState();
+    
+    // Reset if already tracing
+    if (isTracing) {
+      setIsTracing(false);
+      await new Promise(r => setTimeout(r, 100));
     }
-    setActiveNodeId(null);
+
+    setIsTracing(true);
+    
+    // Auto-step through the logic
+    const autoStep = async () => {
+      const state = useLogicStore.getState();
+      if (!state.isTracing || !state.activeNodeId) return;
+
+      // Find if there are outgoing edges
+      const outgoing = state.edges.filter(e => e.source === state.activeNodeId);
+      if (outgoing.length === 0) {
+        setIsTracing(false);
+        return;
+      }
+
+      await new Promise(r => setTimeout(r, 1000));
+      nextStep();
+      autoStep();
+    };
+
+    autoStep();
   };
 
   return (
