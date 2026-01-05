@@ -56,7 +56,7 @@ service cloud.firestore {
       allow create: if isOwner()
         && request.resource.data.keys().hasAll(['id', 'projectId', 'action', 'changedBy', 'changedAt'])
         && request.resource.data.projectId == projectId
-        && request.resource.data.action in ['create', 'update', 'delete', 'restore']
+        && request.resource.data.action in ['create', 'update', 'delete', 'restore', 'version']
         && request.resource.data.changedBy is string
         && request.resource.data.changedAt is number
         && request.resource.data.changedAt > 0;

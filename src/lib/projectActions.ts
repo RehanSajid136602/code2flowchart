@@ -1,4 +1,4 @@
-import { Project } from '@/types'
+import { Project, ProjectVersion } from '@/types'
 
 export async function saveProject(userId: string, project: Omit<Project, 'updatedAt'>) {
   const url = '/api/projects'
@@ -129,4 +129,64 @@ export async function importUserData(userId: string, data: Blob | string, option
     throw new Error((err as any)?.error ?? 'Failed to import user data')
   }
   return (await res.json()) as { imported: number; skipped: number; errors: string[] }
+}
+
+export async function getProjectVersions(userId: string, projectId: string, limit?: number): Promise<ProjectVersion[]> {
+  const url = new URL(`/api/projects/${projectId}/versions`, location.origin)
+  url.searchParams.set('userId', userId)
+  if (limit !== undefined) url.searchParams.set('limit', String(limit))
+  const res = await fetch(url.toString())
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error((err as any)?.error ?? 'Failed to fetch project versions')
+  }
+  const data = await res.json()
+  return data.versions as ProjectVersion[]
+}
+
+export async function getProjectVersion(userId: string, projectId: string, versionId: string): Promise<ProjectVersion> {
+  const url = new URL(`/api/projects/${projectId}/versions/${versionId}`, location.origin)
+  url.searchParams.set('userId', userId)
+  const res = await fetch(url.toString())
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error((err as any)?.error ?? 'Failed to fetch project version')
+  }
+  return (await res.json()) as ProjectVersion
+}
+
+export async function createProjectVersion(userId: string, projectId: string, description?: string): Promise<ProjectVersion> {
+  const url = new URL(`/api/projects/${projectId}/versions`, location.origin)
+  url.searchParams.set('userId', userId)
+  const res = await fetch(url.toString(), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ description }),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error((err as any)?.error ?? 'Failed to create project version')
+  }
+  return (await res.json()) as ProjectVersion
+}
+
+export async function restoreProjectVersion(userId: string, projectId: string, versionId: string): Promise<Project> {
+  const url = new URL(`/api/projects/${projectId}/versions/${versionId}/restore`, location.origin)
+  url.searchParams.set('userId', userId)
+  const res = await fetch(url.toString(), { method: 'POST' })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error((err as any)?.error ?? 'Failed to restore project version')
+  }
+  return (await res.json()) as Project
+}
+
+export async function deleteProjectVersion(userId: string, projectId: string, versionId: string): Promise<void> {
+  const url = new URL(`/api/projects/${projectId}/versions/${versionId}`, location.origin)
+  url.searchParams.set('userId', userId)
+  const res = await fetch(url.toString(), { method: 'DELETE' })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error((err as any)?.error ?? 'Failed to delete project version')
+  }
 }

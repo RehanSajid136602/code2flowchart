@@ -43,6 +43,23 @@ export interface ProjectHistory {
   previousValues?: Partial<Project>;
 }
 
+export interface ProjectVersion {
+  id: string;
+  projectId: string;
+  version: number;
+  name: string;
+  code: string;
+  nodes: LogicNode[];
+  edges: Edge[];
+  createdAt: number;
+  createdBy: string;
+  description?: string;
+}
+
+export interface CreateVersionInput {
+  description?: string;
+}
+
 export interface LogicState {
   nodes: LogicNode[];
   edges: Edge[];
