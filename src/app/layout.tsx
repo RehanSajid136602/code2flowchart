@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import { QueryProvider } from "@/lib/queryProvider";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -29,8 +30,10 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased selection:bg-blue-500/30 overflow-hidden`}
       >
-        <GlobalDialog />
-        {children}
+        <QueryProvider>
+          <GlobalDialog />
+          {children}
+        </QueryProvider>
       </body>
     </html>
   );

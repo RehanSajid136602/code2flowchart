@@ -102,6 +102,14 @@ npx tsc --noEmit         # Run TypeScript compiler without emitting files
 - Debounce expensive operations (API calls, complex calculations)
 - Memoize expensive calculations with `useMemo`
 
+### React Query (TanStack Query)
+- Use React Query for server state management: `src/hooks/useProjectQueries.ts`
+- Default cache settings: staleTime=60s, gcTime=10min, retry=1
+- Wrap app with QueryProvider in `src/lib/queryProvider.tsx`
+- Use provided hooks: `useProjects`, `useProject`, `useProjectHistory`, `useProjectVersions`
+- Use mutations with automatic cache invalidation: `useSaveProject`, `useUpdateProject`, `useDeleteProject`
+- Invalidate related queries after mutations using `useInvalidateQueries` hook
+
 ### Git and Commits
 - Follow existing commit message style (check `git log`)
 - Don't commit sensitive data (`.env.local`, credentials)
