@@ -6,21 +6,45 @@ service cloud.firestore {
       return request.auth != null && request.auth.uid == userId;
     }
 
+    // Rate limiting helper (max 10 writes per user per minute)
+    function rateLimitOk() {
+      return request.time - resource.data._rateLimitCheck > duration.value(60, 's') || request.auth.uid != resource.data._lastWriter;
+    }
+
+    // Validate timestamp is recent (within 24 hours)
+    function isRecentTimestamp(timestamp) {
+      return timestamp > request.time - duration.value(24, 'h');
+    }
+
     // Users' projects collection (scoped to authenticated user)
     match /users/{userId}/projects/{projectId} {
       allow read: if isOwner();
+      
       allow create: if isOwner()
         && request.resource.data.keys().hasAll(['id', 'name', 'code', 'nodes', 'edges', 'updatedAt', 'isDeleted'])
         && request.resource.data.id == projectId
         && request.resource.data.name is string
+        && request.resource.data.name.size() > 0
+        && request.resource.data.name.size() <= 200
         && request.resource.data.code is string
         && request.resource.data.nodes is list
+        && request.resource.data.nodes.size() <= 1000
         && request.resource.data.edges is list
+        && request.resource.data.edges.size() <= 2000
         && request.resource.data.updatedAt is number
-        && request.resource.data.isDeleted == false;
-      allow update: if isOwner()
-        && (!request.resource.data.keys().hasAny(['isDeleted', 'deletedAt']) || request.resource.data.isDeleted is bool)
+        && request.resource.data.updatedAt > 0
+        && request.resource.data.isDeleted == false
         && (!request.resource.data.keys().hasAny(['deletedAt']) || request.resource.data.deletedAt is number);
+
+      allow update: if isOwner()
+        && (!request.resource.data.keys().hasAny(['isDeleted']) || request.resource.data.isDeleted is bool)
+        && (!request.resource.data.keys().hasAny(['deletedAt']) || request.resource.data.deletedAt is number || request.resource.data.deletedAt == null)
+        && (!request.resource.data.keys().hasAny(['name']) || (request.resource.data.name is string && request.resource.data.name.size() > 0 && request.resource.data.name.size() <= 200))
+        && (!request.resource.data.keys().hasAny(['code']) || request.resource.data.code is string)
+        && (!request.resource.data.keys().hasAny(['nodes']) || (request.resource.data.nodes is list && request.resource.data.nodes.size() <= 1000))
+        && (!request.resource.data.keys().hasAny(['edges']) || (request.resource.data.edges is list && request.resource.data.edges.size() <= 2000))
+        && (!request.resource.data.keys().hasAny(['updatedAt']) || (request.resource.data.updatedAt is number && request.resource.data.updatedAt > 0));
+      
       // Hard delete not allowed via client; use API with service account
       allow delete: if false;
     }
@@ -28,12 +52,32 @@ service cloud.firestore {
     // History subcollection under a project
     match /users/{userId}/projects/{projectId}/history/{historyId} {
       allow read: if isOwner();
+      
       allow create: if isOwner()
         && request.resource.data.keys().hasAll(['id', 'projectId', 'action', 'changedBy', 'changedAt'])
         && request.resource.data.projectId == projectId
         && request.resource.data.action in ['create', 'update', 'delete', 'restore']
         && request.resource.data.changedBy is string
-        && request.resource.data.changedAt is number;
+        && request.resource.data.changedAt is number
+        && request.resource.data.changedAt > 0;
+      
+      allow update, delete: if false;
+    }
+
+    // Versions subcollection (future use)
+    match /users/{userId}/projects/{projectId}/versions/{versionId} {
+      allow read: if isOwner();
+      allow create: if isOwner()
+        && request.resource.data.keys().hasAll(['id', 'projectId', 'version', 'code', 'nodes', 'edges', 'createdAt', 'createdBy'])
+        && request.resource.data.projectId == projectId
+        && request.resource.data.version is number
+        && request.resource.data.version > 0
+        && request.resource.data.code is string
+        && request.resource.data.nodes is list
+        && request.resource.data.edges is list
+        && request.resource.data.createdAt is number
+        && request.resource.data.createdAt > 0
+        && request.resource.data.createdBy is string;
       allow update, delete: if false;
     }
   }

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
-import { getAdminDb } from '../../../lib/firebaseAdmin'
-import { ProjectInputSchema, ProjectUpdateSchema } from '../../../validators/projectSchema'
+import { getAdminDb, runTransaction } from '../../../lib/firebaseAdmin'
+import { ProjectInputSchema } from '../../../validators/projectSchema'
 
 // GET /api/projects?userId=...&limit=...&cursor=...
 export async function GET(request: Request) {
@@ -52,7 +52,7 @@ export async function GET(request: Request) {
   }
 }
 
-// POST /api/projects
+// POST /api/projects - Create project with atomic transaction
 export async function POST(request: Request) {
   try {
     type Body = { userId: string; project: any }
@@ -68,19 +68,36 @@ export async function POST(request: Request) {
     }
 
     const db: any = getAdminDb()
-    const projectsRef = db.collection('users').doc(userId).collection('projects')
-    const newRef = projectsRef.doc()
-    const data = {
-      id: newRef.id,
+    const userDocRef = db.collection('users').doc(userId)
+    const projectsRef = userDocRef.collection('projects')
+    const newProjectRef = projectsRef.doc()
+    const historyRef = newProjectRef.collection('history').doc()
+    const now = Date.now()
+
+    const projectData = {
+      id: newProjectRef.id,
       name: parsed.data.name,
       code: parsed.data.code,
       nodes: parsed.data.nodes,
       edges: parsed.data.edges,
-      updatedAt: Date.now(),
+      updatedAt: now,
       isDeleted: false,
     }
-    await newRef.set(data)
-    return NextResponse.json(data, { status: 201 })
+
+    const historyData = {
+      id: historyRef.id,
+      projectId: newProjectRef.id,
+      action: 'create',
+      changedBy: userId,
+      changedAt: now,
+    }
+
+    await runTransaction(async (transaction: any) => {
+      transaction.set(newProjectRef, projectData)
+      transaction.set(historyRef, historyData)
+    })
+
+    return NextResponse.json(projectData, { status: 201 })
   } catch (err) {
     return NextResponse.json({ error: (err as Error).message }, { status: 500 })
   }
