@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 
 import CodeEditor from '@/components/editor/CodeEditor';
 import FlowCanvas from '@/components/canvas/FlowCanvas';
-import { Play, Share2, Zap, RefreshCw, Bug, Save } from 'lucide-react';
+import { Play, Share2, Zap, RefreshCw, Bug, Save, History, BookOpen, Info } from 'lucide-react';
 import { useSyncLogic } from '@/hooks/useSyncLogic';
 import { useLogicStore } from '@/store/useLogicStore';
 import { useSoundEffect } from '@/hooks/useSoundEffect';
@@ -259,6 +259,30 @@ export default function Home() {
           <LanguageSelector selectedId={targetLang} onSelect={(id) => setTargetLang(id)} />
 
           <button
+            onClick={() => router.push('/history')}
+            className="flex items-center gap-2 text-sm text-slate-300 hover:text-white transition-colors"
+          >
+            <History className="w-4 h-4" />
+            History
+          </button>
+
+          <button
+            onClick={() => router.push('/guide')}
+            className="flex items-center gap-2 text-sm text-slate-300 hover:text-white transition-colors"
+          >
+            <BookOpen className="w-4 h-4" />
+            Guide
+          </button>
+
+          <button
+            onClick={() => router.push('/about')}
+            className="flex items-center gap-2 text-sm text-slate-300 hover:text-white transition-colors"
+          >
+            <Info className="w-4 h-4" />
+            About
+          </button>
+
+          <button
             onClick={() => setIsRefineOpen(true)}
             disabled={isConverting}
             className="flex items-center gap-2 text-sm text-slate-300 hover:text-white transition-colors disabled:opacity-50"
@@ -299,23 +323,23 @@ export default function Home() {
 
           <div className="h-4 w-px bg-slate-800" />
 
-          <div className="flex items-center gap-3">
-            <button
-              onClick={handleBuildFlowchart}
-              disabled={isSyncing}
-              className="flex items-center gap-2 px-4 py-1.5 bg-blue-600 hover:bg-blue-500 rounded-full text-sm font-medium text-white transition-all shadow-lg shadow-blue-500/20 disabled:opacity-50"
-            >
-              {isSyncing ? (
-                <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-              ) : (
-                <Zap className="w-3.5 h-3.5 fill-current" />
-              )}
-              {isSyncing ? 'Building...' : 'Build Flowchart'}
-            </button>
-            <button className="p-2 text-slate-400 hover:text-white transition-colors">
-              <Share2 className="w-5 h-5" />
-            </button>
-          </div>
+          <button
+            onClick={handleBuildFlowchart}
+            disabled={isSyncing}
+            className="flex items-center gap-2 px-4 py-1.5 bg-blue-600 hover:bg-blue-500 rounded-full text-sm font-medium text-white transition-all shadow-lg shadow-blue-500/20 disabled:opacity-50"
+          >
+            {isSyncing ? (
+              <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+            ) : (
+              <Zap className="w-3.5 h-3.5 fill-current" />
+            )}
+            {isSyncing ? 'Building...' : 'Build Flowchart'}
+          </button>
+          <button className="p-2 text-slate-400 hover:text-white transition-colors">
+            <Share2 className="w-5 h-5" />
+          </button>
+
+          <div className="h-4 w-px bg-slate-800" />
 
           <UserMenu />
         </nav>
