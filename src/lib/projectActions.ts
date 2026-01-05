@@ -1,192 +1,200 @@
-import { Project, ProjectVersion } from '@/types'
+import { collection, doc, setDoc, getDocs, deleteDoc, query, orderBy, Timestamp, serverTimestamp } from 'firebase/firestore'
+import { getFirebaseFirestore } from './firebase'
+import { ProjectInputSchema, ProjectUpdateSchema } from '@/validators/projectSchema'
+import { Project, ProjectHistory } from '@/types'
 
 export async function saveProject(userId: string, project: Omit<Project, 'updatedAt'>) {
-  const url = '/api/projects'
-  const payload = { userId, project }
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload)
+  const db = getFirebaseFirestore()
+  if (!db) throw new Error('Firestore not initialized')
+
+  const projectRef = doc(db, 'users', userId, 'projects', project.id)
+  const historyRef = doc(projectRef, 'history', crypto.randomUUID())
+
+  await setDoc(projectRef, {
+    ...project,
+    updatedAt: serverTimestamp(),
+    isDeleted: false,
+  }, { merge: true })
+
+  const previousSnapshot = await getDocs(collection(db, 'users', userId, 'projects', project.id, 'history'))
+  const previousData = previousSnapshot.docs.length > 0 ? previousSnapshot.docs[0].data() : null
+
+  await setDoc(historyRef, {
+    id: historyRef.id,
+    projectId: project.id,
+    action: 'create',
+    changedBy: userId,
+    changedAt: Timestamp.now(),
+    previousValues: previousData as Partial<Project>,
   })
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}))
-    throw new Error((err as any)?.error ?? 'Failed to save project')
-  }
-  return (await res.json()) as Project
 }
 
 export async function getProjects(userId: string, limit?: number, cursor?: number): Promise<{ projects: Project[]; nextCursor?: number }> {
-  const url = new URL('/api/projects', location.origin)
-  url.searchParams.set('userId', userId)
-  if (limit !== undefined) url.searchParams.set('limit', String(limit))
-  if (cursor !== undefined && cursor !== null) url.searchParams.set('cursor', String(cursor))
-  const res = await fetch(url.toString())
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}))
-    throw new Error((err as any)?.error ?? 'Failed to fetch projects')
-  }
-  return (await res.json()) as any
+  const db = getFirebaseFirestore()
+  if (!db) throw new Error('Firestore not initialized')
+
+  const userProjectsRef = collection(db, 'users', userId, 'projects')
+  let q: any = query(userProjectsRef, orderBy('updatedAt', 'desc'))
+
+  if (limit) q = q.limit(limit)
+  if (cursor) q = q.startAfter(new Timestamp(cursor, 0))
+
+  const snap = await getDocs(q)
+  const projects = snap.docs.map(doc => {
+    const data = doc.data()
+    return {
+      id: doc.id,
+      ...data,
+      updatedAt: data?.updatedAt?.toMillis() || data?.updatedAt || Date.now(),
+    } as Project
+  })
+
+  const nextCursor = snap.size === limit && snap.docs.length > 0
+    ? projects[projects.length - 1]?.updatedAt
+    : undefined
+
+  return { projects, nextCursor }
 }
 
 export async function getProject(userId: string, projectId: string): Promise<Project> {
-  const url = new URL(`/api/projects/${projectId}`, location.origin)
-  url.searchParams.set('userId', userId)
-  const res = await fetch(url.toString())
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}))
-    throw new Error((err as any)?.error ?? 'Failed to fetch project')
+  const db = getFirebaseFirestore()
+  if (!db) throw new Error('Firestore not initialized')
+
+  const projectRef = doc(db, 'users', userId, 'projects', projectId)
+  const docSnap = await getDoc(projectRef)
+  if (!docSnap.exists()) {
+    throw new Error('Project not found')
   }
-  return (await res.json()) as Project
+
+  const data = docSnap.data()
+  return {
+    id: docSnap.id,
+    ...data,
+    updatedAt: data?.updatedAt?.toMillis() || data?.updatedAt || Date.now(),
+  } as Project
 }
 
 export async function updateProject(userId: string, projectId: string, updates: Partial<Project>): Promise<Project> {
-  const url = new URL(`/api/projects/${projectId}`, location.origin)
-  url.searchParams.set('userId', userId)
-  const res = await fetch(url.toString(), {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(updates)
-  })
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}))
-    throw new Error((err as any)?.error ?? 'Failed to update project')
+  const db = getFirebaseFirestore()
+  if (!db) throw new Error('Firestore not initialized')
+
+  const projectRef = doc(db, 'users', userId, 'projects', projectId)
+  const docSnap = await getDoc(projectRef)
+
+  if (!docSnap.exists()) {
+    throw new Error('Project not found')
   }
-  return (await res.json()) as Project
+
+  const previousData = docSnap.data()
+
+  await setDoc(projectRef, {
+    ...updates,
+    updatedAt: serverTimestamp(),
+  }, { merge: true })
+
+  const historyRef = doc(projectRef, 'history', crypto.randomUUID())
+  await setDoc(historyRef, {
+    id: historyRef.id,
+    projectId,
+    action: 'update',
+    changedBy: userId,
+    changedAt: Timestamp.now(),
+    previousValues: previousData as Partial<Project>,
+  })
 }
 
 export async function deleteProject(userId: string, projectId: string, hard?: boolean) {
-  const url = new URL(`/api/projects/${projectId}`, location.origin)
-  url.searchParams.set('userId', userId)
-  if (hard) url.searchParams.set('hard', 'true')
-  const res = await fetch(url.toString(), { method: 'DELETE' })
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}))
-    throw new Error((err as any)?.error ?? 'Failed to delete project')
+  const db = getFirebaseFirestore()
+  if (!db) throw new Error('Firestore not initialized')
+
+  const projectRef = doc(db, 'users', userId, 'projects', projectId)
+  const docSnap = await getDoc(projectRef)
+
+  if (!docSnap.exists()) {
+    throw new Error('Project not found')
   }
-  return (await res.json()) as any
+
+  const previousData = docSnap.data()
+
+  if (hard) {
+    const historyRef = doc(projectRef, 'history', crypto.randomUUID())
+    await setDoc(historyRef, {
+      id: historyRef.id,
+      projectId,
+      action: 'delete',
+      changedBy: userId,
+      changedAt: Timestamp.now(),
+      previousValues: previousData as Partial<Project>,
+    })
+    await deleteDoc(projectRef)
+  } else {
+    await setDoc(projectRef, {
+      isDeleted: true,
+      deletedAt: Timestamp.now(),
+      updatedAt: serverTimestamp(),
+    }, { merge: true })
+
+    const historyRef = doc(projectRef, 'history', crypto.randomUUID())
+    await setDoc(historyRef, {
+      id: historyRef.id,
+      projectId,
+      action: 'delete',
+      changedBy: userId,
+      changedAt: Timestamp.now(),
+      previousValues: previousData as Partial<Project>,
+    })
+  }
 }
 
 export async function restoreProject(userId: string, projectId: string): Promise<Project> {
-  const url = new URL(`/api/projects/${projectId}`, location.origin)
-  url.searchParams.set('userId', userId)
-  const res = await fetch(url.toString(), { method: 'POST' })
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}))
-    throw new Error((err as any)?.error ?? 'Failed to restore project')
+  const db = getFirebaseFirestore()
+  if (!db) throw new Error('Firestore not initialized')
+
+  const projectRef = doc(db, 'users', userId, 'projects', projectId)
+  const docSnap = await getDoc(projectRef)
+
+  if (!docSnap.exists()) {
+    throw new Error('Project not found')
   }
-  return (await res.json()) as Project
-}
 
-export async function getProjectHistory(userId: string, projectId: string): Promise<any[]> {
-  const url = new URL(`/api/projects/${projectId}/history`, location.origin)
-  url.searchParams.set('userId', userId)
-  const res = await fetch(url.toString())
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}))
-    throw new Error((err as any)?.error ?? 'Failed to fetch project history')
-  }
-  const data = await res.json()
-  return data.history as any[]
-}
+  const data = docSnap.data()
+  const previousData = { isDeleted: data?.isDeleted, deletedAt: data?.deletedAt }
 
-export async function exportUserData(userId: string): Promise<Blob> {
-  const url = new URL('/api/backup', location.origin)
-  url.searchParams.set('userId', userId)
-  url.searchParams.set('format', 'blob')
-  const res = await fetch(url.toString())
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}))
-    throw new Error((err as any)?.error ?? 'Failed to export user data')
-  }
-  return res.blob()
-}
+  await setDoc(projectRef, {
+    isDeleted: false,
+    deletedAt: null,
+    updatedAt: serverTimestamp(),
+  }, { merge: true })
 
-export async function getBackupMetadata(userId: string): Promise<{ projectCount: number; lastUpdated: number }> {
-  const url = new URL('/api/backup', location.origin)
-  url.searchParams.set('userId', userId)
-  url.searchParams.set('metadata', 'true')
-  const res = await fetch(url.toString())
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}))
-    throw new Error((err as any)?.error ?? 'Failed to fetch backup metadata')
-  }
-  return (await res.json()) as { projectCount: number; lastUpdated: number }
-}
-
-export async function importUserData(userId: string, data: Blob | string, options?: { onConflict?: 'rename' | 'skip' | 'overwrite' }): Promise<{ imported: number; skipped: number; errors: string[] }> {
-  const url = new URL('/api/backup/import', location.origin)
-  url.searchParams.set('userId', userId)
-  if (options?.onConflict) url.searchParams.set('onConflict', options.onConflict)
-
-  const isBlob = data instanceof Blob
-  const res = await fetch(url.toString(), {
-    method: 'POST',
-    headers: isBlob ? {} : { 'Content-Type': 'application/json' },
-    body: isBlob ? data : JSON.stringify(data),
+  const historyRef = doc(projectRef, 'history', crypto.randomUUID())
+  await setDoc(historyRef, {
+    id: historyRef.id,
+    projectId,
+    action: 'restore',
+    changedBy: userId,
+    changedAt: Timestamp.now(),
+    previousValues: previousData as Partial<Project>,
   })
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}))
-    throw new Error((err as any)?.error ?? 'Failed to import user data')
-  }
-  return (await res.json()) as { imported: number; skipped: number; errors: string[] }
 }
 
-export async function getProjectVersions(userId: string, projectId: string, limit?: number): Promise<ProjectVersion[]> {
-  const url = new URL(`/api/projects/${projectId}/versions`, location.origin)
-  url.searchParams.set('userId', userId)
-  if (limit !== undefined) url.searchParams.set('limit', String(limit))
-  const res = await fetch(url.toString())
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}))
-    throw new Error((err as any)?.error ?? 'Failed to fetch project versions')
-  }
-  const data = await res.json()
-  return data.versions as ProjectVersion[]
-}
+export async function getProjectHistory(userId: string, projectId?: string): Promise<ProjectHistory[]> {
+  const db = getFirebaseFirestore()
+  if (!db) throw new Error('Firestore not initialized')
 
-export async function getProjectVersion(userId: string, projectId: string, versionId: string): Promise<ProjectVersion> {
-  const url = new URL(`/api/projects/${projectId}/versions/${versionId}`, location.origin)
-  url.searchParams.set('userId', userId)
-  const res = await fetch(url.toString())
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}))
-    throw new Error((err as any)?.error ?? 'Failed to fetch project version')
+  let q: any
+  if (projectId) {
+    q = query(collection(db, 'users', userId, 'projects', projectId, 'history'), orderBy('changedAt', 'desc'))
+  } else {
+    q = query(collection(db, 'users', userId, 'projects', 'projectId'), where('projectId', '==', projectId), orderBy('changedAt', 'desc'))
   }
-  return (await res.json()) as ProjectVersion
-}
 
-export async function createProjectVersion(userId: string, projectId: string, description?: string): Promise<ProjectVersion> {
-  const url = new URL(`/api/projects/${projectId}/versions`, location.origin)
-  url.searchParams.set('userId', userId)
-  const res = await fetch(url.toString(), {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ description }),
+  const snap = await getDocs(q)
+  return snap.docs.map(doc => {
+    const data = doc.data()
+    return {
+      id: doc.id,
+      ...data,
+      changedAt: data?.changedAt?.toMillis() || data?.changedAt || Date.now(),
+    } as ProjectHistory
   })
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}))
-    throw new Error((err as any)?.error ?? 'Failed to create project version')
-  }
-  return (await res.json()) as ProjectVersion
-}
-
-export async function restoreProjectVersion(userId: string, projectId: string, versionId: string): Promise<Project> {
-  const url = new URL(`/api/projects/${projectId}/versions/${versionId}/restore`, location.origin)
-  url.searchParams.set('userId', userId)
-  const res = await fetch(url.toString(), { method: 'POST' })
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}))
-    throw new Error((err as any)?.error ?? 'Failed to restore project version')
-  }
-  return (await res.json()) as Project
-}
-
-export async function deleteProjectVersion(userId: string, projectId: string, versionId: string): Promise<void> {
-  const url = new URL(`/api/projects/${projectId}/versions/${versionId}`, location.origin)
-  url.searchParams.set('userId', userId)
-  const res = await fetch(url.toString(), { method: 'DELETE' })
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}))
-    throw new Error((err as any)?.error ?? 'Failed to delete project version')
-  }
 }

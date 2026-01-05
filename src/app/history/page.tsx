@@ -3,15 +3,16 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/hooks/useAuth'
+import { getProjectHistory } from '@/lib/projectActions'
 import { History as HistoryIcon, Clock, FileText, Trash2, RefreshCw, Search, ArrowLeft } from 'lucide-react'
-import { useProjectHistory } from '@/hooks/useProjectQueries'
-import type { ProjectHistory } from '@/types'
 
 export default function HistoryPage() {
   const router = useRouter()
   const { user, loading } = useAuth()
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
+  const [history, setHistory] = useState<any[]>([])
+  const [isLoading, setIsLoading] = useState(false)
 
   useEffect(() => {
     if (!loading && !user) {
@@ -19,21 +20,22 @@ export default function HistoryPage() {
     }
   }, [user, loading, router])
 
-  const { data: historyData } = useProjectHistory(user?.uid ?? null, selectedProjectId ?? null)
+  useEffect(() => {
+    const fetchHistory = async () => {
+      if (!user) return
+      setIsLoading(true)
+      try {
+        const data = await getProjectHistory(user.uid, selectedProjectId ?? null)
+        setHistory(data)
+      } catch (error) {
+        console.error('Failed to fetch history:', error)
+      } finally {
+        setIsLoading(false)
+      }
+    }
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-pulse text-2xl">Loading...</div>
-      </div>
-    )
-  }
-
-  if (!user) {
-    return null
-  }
-
-  const history = historyData?.history ?? []
+    fetchHistory()
+  }, [user, selectedProjectId])
 
   const filteredHistory = history.filter(entry => {
     if (selectedProjectId && entry.projectId !== selectedProjectId) return false
@@ -129,6 +131,7 @@ export default function HistoryPage() {
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="w-full bg-slate-800 text-white pl-10 pr-4 py-2.5 rounded-lg border border-slate-700 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all"
+                  disabled={isLoading}
                 />
               </div>
             </div>
@@ -138,16 +141,23 @@ export default function HistoryPage() {
                 value={selectedProjectId ?? ''}
                 onChange={(e) => setSelectedProjectId(e.target.value || null)}
                 className="w-full bg-slate-800 text-white px-4 py-2.5 rounded-lg border border-slate-700 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all cursor-pointer"
+                disabled={isLoading}
               >
                 <option value="">All Projects</option>
-                <option value="all">Show All</option>
               </select>
             </div>
           </div>
         </div>
 
         <div className="space-y-4">
-          {filteredHistory.length === 0 ? (
+          {isLoading ? (
+            <div className="text-center py-12">
+              <div className="inline-block animate-pulse">
+                <HistoryIcon className="h-8 w-8 text-slate-600" />
+              </div>
+              <p className="text-slate-400 mt-4">Loading history...</p>
+            </div>
+          ) : history.length === 0 ? (
             <div className="bg-slate-900/50 rounded-xl p-12 backdrop-blur-sm border border-slate-800 text-center">
               <HistoryIcon className="h-16 w-16 text-slate-600 mx-auto mb-4" />
               <h3 className="text-xl font-semibold text-slate-300 mb-2">No history found</h3>
@@ -166,7 +176,7 @@ export default function HistoryPage() {
               )}
             </div>
           ) : (
-            filteredHistory.map((entry) => (
+            history.map((entry) => (
               <div
                 key={entry.id}
                 className="bg-slate-900/50 rounded-xl p-6 backdrop-blur-sm border border-slate-800 hover:border-slate-700 transition-all"
