@@ -88,3 +88,45 @@ export async function getProjectHistory(userId: string, projectId: string): Prom
   const data = await res.json()
   return data.history as any[]
 }
+
+export async function exportUserData(userId: string): Promise<Blob> {
+  const url = new URL('/api/backup', location.origin)
+  url.searchParams.set('userId', userId)
+  url.searchParams.set('format', 'blob')
+  const res = await fetch(url.toString())
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error((err as any)?.error ?? 'Failed to export user data')
+  }
+  return res.blob()
+}
+
+export async function getBackupMetadata(userId: string): Promise<{ projectCount: number; lastUpdated: number }> {
+  const url = new URL('/api/backup', location.origin)
+  url.searchParams.set('userId', userId)
+  url.searchParams.set('metadata', 'true')
+  const res = await fetch(url.toString())
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error((err as any)?.error ?? 'Failed to fetch backup metadata')
+  }
+  return (await res.json()) as { projectCount: number; lastUpdated: number }
+}
+
+export async function importUserData(userId: string, data: Blob | string, options?: { onConflict?: 'rename' | 'skip' | 'overwrite' }): Promise<{ imported: number; skipped: number; errors: string[] }> {
+  const url = new URL('/api/backup/import', location.origin)
+  url.searchParams.set('userId', userId)
+  if (options?.onConflict) url.searchParams.set('onConflict', options.onConflict)
+
+  const isBlob = data instanceof Blob
+  const res = await fetch(url.toString(), {
+    method: 'POST',
+    headers: isBlob ? {} : { 'Content-Type': 'application/json' },
+    body: isBlob ? data : JSON.stringify(data),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error((err as any)?.error ?? 'Failed to import user data')
+  }
+  return (await res.json()) as { imported: number; skipped: number; errors: string[] }
+}
