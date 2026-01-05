@@ -17,6 +17,8 @@ export const metadata: Metadata = {
   description: "Next-generation logic visualization and code generation tool.",
 };
 
+import GlobalDialog from "@/components/ui/GlobalDialog";
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -27,6 +29,7 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased selection:bg-blue-500/30 overflow-hidden`}
       >
+        <GlobalDialog />
         {children}
       </body>
     </html>

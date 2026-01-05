@@ -21,6 +21,8 @@
 
 ### Backend (Serverless)
 - **Runtime:** Next.js API Routes (Node.js)
+- **Authentication:** Firebase Auth (Google & Email/Password)
+- **Persistence:** Firebase Firestore (`users/{userId}/projects/{projectId}`)
 - **AI Engine:** Dynamic Rotation (`gemini-2.5-flash`, `gemini-2.5-pro`, `gemini-2.5-flash-lite`)
 - **Key Strategy:** Randomized Key & Model Pool
 - **Validation:** Zod
@@ -59,6 +61,8 @@ When modifying this codebase, follow the **Cognitive Pre-flight** protocol:
 ## 5. RECENT UPDATES & TODOs
 - [x] Initial React Flow + Monaco integration.
 - [x] Gemini-powered Code-to-Diagram sync.
-- [ ] Implement Diagram-to-Code conversion (In Progress).
-- [ ] Add export to PDF/Image feature.
-- [ ] Enhance analysis engine with suggestion/fix capability.
+- [x] Firebase Authentication (Google/Email).
+- [x] Implement Diagram-to-Code conversion.
+- [x] Add export to PDF/Image feature.
+- [x] Enhance analysis engine with suggestion/fix capability.
+- [x] Implement Project Persistence (Firestore).

@@ -17,9 +17,12 @@ import { useLogicStore } from '@/store/useLogicStore';
 import { OvalNode, RectangleNode, DiamondNode, ParallelogramNode } from './CustomNodes';
 import { Play, SkipForward, RotateCcw, Bug, FileDown, BrainCircuit, Activity, Target } from 'lucide-react';
 import { toPng } from 'html-to-image';
+import { jsPDF } from 'jspdf';
+import { motion, AnimatePresence } from 'framer-motion';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { playEffect } from '@/hooks/useSoundEffect';
+import AnalysisSidebar from './AnalysisSidebar';
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -35,11 +38,11 @@ const nodeTypes = {
 function FlowInner() {
   const { fitView } = useReactFlow();
   const [isHudMinimized, setIsHudMinimized] = useState(false);
-  const { 
-    nodes, 
-    edges, 
-    onNodesChange, 
-    onEdgesChange, 
+  const {
+    nodes,
+    edges,
+    onNodesChange,
+    onEdgesChange,
     onConnect,
     isTracing,
     setIsTracing,
@@ -75,8 +78,8 @@ function FlowInner() {
           ...edge.style,
           stroke: isActive ? '#10b981' : (edge.style?.stroke || '#3b82f6'),
           strokeWidth: isActive ? 4 : (edge.style?.strokeWidth || 2),
-          filter: isActive 
-            ? 'drop-shadow(0 0 12px rgba(16, 185, 129, 0.8))' 
+          filter: isActive
+            ? 'drop-shadow(0 0 12px rgba(16, 185, 129, 0.8))'
             : 'drop-shadow(0 0 5px rgba(59, 130, 246, 0.5))',
         },
       };
@@ -86,10 +89,10 @@ function FlowInner() {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       const activeElement = document.activeElement;
-      const isInput = activeElement?.tagName === 'INPUT' || 
-                      activeElement?.tagName === 'TEXTAREA' || 
-                      activeElement?.classList.contains('monaco-editor') ||
-                      (activeElement as HTMLElement)?.isContentEditable;
+      const isInput = activeElement?.tagName === 'INPUT' ||
+        activeElement?.tagName === 'TEXTAREA' ||
+        activeElement?.classList.contains('monaco-editor') ||
+        (activeElement as HTMLElement)?.isContentEditable;
 
       if (isInput) return;
 
@@ -120,7 +123,7 @@ function FlowInner() {
           return true;
         },
       });
-      
+
       const link = document.createElement('a');
       link.download = `logicflow-${Date.now()}.png`;
       link.href = dataUrl;
@@ -130,6 +133,34 @@ function FlowInner() {
       console.error('Export failed:', error);
     }
   };
+
+  const handleExportPdf = async () => {
+    const element = document.querySelector('.react-flow__viewport') as HTMLElement;
+    if (!element) return;
+
+    try {
+      playEffect('sync');
+      const dataUrl = await toPng(element, {
+        backgroundColor: '#0a0a0a',
+        quality: 1,
+        pixelRatio: 2,
+      });
+
+      const pdf = new jsPDF({
+        orientation: 'landscape',
+        unit: 'px',
+        format: [element.offsetWidth, element.offsetHeight]
+      });
+
+      pdf.addImage(dataUrl, 'PNG', 0, 0, element.offsetWidth, element.offsetHeight);
+      pdf.save(`logicflow-${Date.now()}.pdf`);
+      playEffect('export');
+    } catch (error) {
+      console.error('PDF Export failed:', error);
+    }
+  };
+
+  const [showExportMenu, setShowExportMenu] = useState(false);
 
   return (
     <div className="w-full h-full bg-[#0a0a0a] relative overflow-hidden">
@@ -153,7 +184,7 @@ function FlowInner() {
       >
         <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="#333" />
         <Controls className="bg-slate-900 border-slate-700 fill-slate-100" />
-        <MiniMap 
+        <MiniMap
           nodeStrokeColor={(n) => {
             if (n.type === 'oval') return '#60a5fa';
             if (n.type === 'rectangle') return '#94a3b8';
@@ -168,7 +199,7 @@ function FlowInner() {
 
         <Panel position="top-right" className="bg-slate-900/80 backdrop-blur-md p-3 border border-slate-700 rounded-xl shadow-2xl flex flex-col gap-3 z-50">
           <div className="flex items-center gap-2 border-b border-slate-700 pb-2">
-            <button 
+            <button
               onClick={() => setIsTracing(!isTracing)}
               className={cn(
                 "p-2 rounded-lg transition-all",
@@ -177,7 +208,7 @@ function FlowInner() {
             >
               {isTracing ? <RotateCcw size={18} /> : <Play size={18} />}
             </button>
-            <button 
+            <button
               onClick={nextStep}
               disabled={!isTracing}
               className="p-2 bg-slate-800 text-slate-300 rounded-lg hover:bg-slate-700 disabled:opacity-50 transition-all"
@@ -185,7 +216,7 @@ function FlowInner() {
               <SkipForward size={18} />
             </button>
             <div className="h-6 w-px bg-slate-700 mx-1" />
-            <button 
+            <button
               onClick={focusStartNode}
               className="p-2 bg-blue-500/10 text-blue-400 rounded-lg hover:bg-blue-500/20 transition-all border border-blue-500/20"
               title="Go to Start"
@@ -194,21 +225,48 @@ function FlowInner() {
             </button>
           </div>
 
-          <div className="flex gap-2">
-            <button 
+          <div className="flex gap-2 relative">
+            <button
               onClick={runAnalysis}
               className="flex items-center gap-2 px-3 py-1.5 text-xs bg-amber-600/20 text-amber-400 border border-amber-600/30 hover:bg-amber-600/30 rounded-lg transition-all"
             >
               <Bug size={14} /> Bug Spotter
             </button>
-            <button 
-              onClick={handleExport}
-              className="flex items-center gap-2 px-3 py-1.5 text-xs bg-blue-600 text-white rounded-lg hover:bg-blue-500 transition-all shadow-lg"
-            >
-              <FileDown size={14} /> Export
-            </button>
+            <div className="relative">
+              <button
+                onClick={() => setShowExportMenu(!showExportMenu)}
+                className="flex items-center gap-2 px-4 py-1.5 text-xs bg-blue-600 text-white rounded-lg hover:bg-blue-500 transition-all shadow-lg font-medium"
+              >
+                <FileDown size={14} /> Export
+              </button>
+
+              <AnimatePresence>
+                {showExportMenu && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                    className="absolute right-0 mt-2 w-40 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl overflow-hidden z-[100]"
+                  >
+                    <button
+                      onClick={() => { handleExport(); setShowExportMenu(false); }}
+                      className="w-full px-4 py-2.5 text-left text-xs text-slate-300 hover:bg-slate-800 hover:text-white transition-colors flex items-center justify-between"
+                    >
+                      Image (PNG)
+                    </button>
+                    <button
+                      onClick={() => { handleExportPdf(); setShowExportMenu(false); }}
+                      className="w-full px-4 py-2.5 text-left text-xs text-slate-300 hover:bg-slate-800 hover:text-white transition-colors border-t border-slate-800 flex items-center justify-between"
+                    >
+                      Document (PDF)
+                    </button>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
           </div>
         </Panel>
+        <AnalysisSidebar />
       </ReactFlow>
 
       {complexityData && (
@@ -218,7 +276,7 @@ function FlowInner() {
             isHudMinimized ? "w-[48px] h-[48px] p-0 flex items-center justify-center rounded-full" : "min-w-[280px] p-5"
           )}>
             {isHudMinimized ? (
-              <button 
+              <button
                 onClick={() => setIsHudMinimized(false)}
                 className="w-full h-full flex items-center justify-center text-blue-400 hover:text-blue-200 transition-colors"
               >
@@ -235,7 +293,7 @@ function FlowInner() {
                       <div className="w-1 h-1 rounded-full bg-blue-500 animate-pulse" />
                       <div className="w-1 h-1 rounded-full bg-blue-500 animate-pulse delay-75" />
                     </div>
-                    <button 
+                    <button
                       onClick={() => setIsHudMinimized(true)}
                       className="p-1 hover:bg-slate-800 rounded-md text-slate-500 hover:text-slate-300 transition-colors"
                     >
@@ -243,19 +301,19 @@ function FlowInner() {
                     </button>
                   </div>
                 </div>
-                
+
                 <div className="grid grid-cols-2 gap-6 relative">
                   <div className="absolute top-0 bottom-0 left-1/2 w-[1px] bg-slate-800/50" />
-                  
+
                   <div className="space-y-1">
                     <p className="text-[9px] text-slate-500 uppercase font-bold flex items-center gap-1">
-                       Time Complexity
+                      Time Complexity
                     </p>
                     <div className="flex items-baseline gap-2">
-                       <p className="font-mono text-2xl font-black text-emerald-400 drop-shadow-[0_0_8px_rgba(52,211,153,0.4)]">
-                         {complexityData.time}
-                       </p>
-                       <Activity size={12} className="text-emerald-900" />
+                      <p className="font-mono text-2xl font-black text-emerald-400 drop-shadow-[0_0_8px_rgba(52,211,153,0.4)]">
+                        {complexityData.time}
+                      </p>
+                      <Activity size={12} className="text-emerald-900" />
                     </div>
                   </div>
 
@@ -264,10 +322,10 @@ function FlowInner() {
                       Space Complexity
                     </p>
                     <div className="flex items-baseline gap-2">
-                       <p className="font-mono text-2xl font-black text-amber-400 drop-shadow-[0_0_8px_rgba(251,191,36,0.4)]">
-                         {complexityData.space}
-                       </p>
-                       <Activity size={12} className="text-amber-900" />
+                      <p className="font-mono text-2xl font-black text-amber-400 drop-shadow-[0_0_8px_rgba(251,191,36,0.4)]">
+                        {complexityData.space}
+                      </p>
+                      <Activity size={12} className="text-amber-900" />
                     </div>
                   </div>
                 </div>

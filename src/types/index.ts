@@ -10,6 +10,28 @@ export interface LogicNodeData extends Record<string, unknown> {
 
 export type LogicNode = Node<LogicNodeData>;
 
+export interface AnalysisSuggestion {
+  nodeId?: string;
+  title: string;
+  issue: string;
+  suggestion: string;
+  fix?: string;
+}
+
+export interface AnalysisDetails {
+  analysis: string;
+  suggestions: AnalysisSuggestion[];
+}
+
+export interface Project {
+  id: string;
+  name: string;
+  code: string;
+  nodes: LogicNode[];
+  edges: Edge[];
+  updatedAt: number;
+}
+
 export interface LogicState {
   nodes: LogicNode[];
   edges: Edge[];
@@ -21,7 +43,10 @@ export interface LogicState {
   activeEdgeId: string | null;
   bugNodeIds: string[];
   complexityData: { time: string; space: string } | null;
+  analysisDetails: AnalysisDetails | null;
   lastModelUsed: string | null;
+  currentProjectId: string | null;
+  currentProjectName: string | null;
   onNodesChange: OnNodesChange<LogicNode>;
   onEdgesChange: OnEdgesChange;
   onConnect: OnConnect;
@@ -35,6 +60,11 @@ export interface LogicState {
   setActiveNodeId: (id: string | null) => void;
   setBugNodeIds: (ids: string[]) => void;
   setComplexityData: (data: { time: string; space: string } | null) => void;
+  setAnalysisDetails: (details: AnalysisDetails | null) => void;
   setLastModelUsed: (model: string | null) => void;
+  setCurrentProjectId: (id: string | null) => void;
+  setCurrentProjectName: (name: string | null) => void;
+  loadProject: (project: Project) => void;
+  applyFix: (fix: string) => void;
   runAnalysis: () => Promise<void>;
 }

@@ -1,11 +1,11 @@
 'use client';
 
 const sounds = {
-  sync: 'https://assets.mixkit.co/active_storage/sfx/2354/2354-preview.mp3',
-  bug: 'https://assets.mixkit.co/active_storage/sfx/2358/2358-preview.mp3',
-  step: 'https://assets.mixkit.co/active_storage/sfx/2568/2568-preview.mp3',
-  export: 'https://assets.mixkit.co/active_storage/sfx/2355/2355-preview.mp3',
-  stop: 'https://assets.mixkit.co/active_storage/sfx/2359/2359-preview.mp3',
+  sync: 'https://assets.mixkit.co/active_storage/sfx/2571/2571-preview.mp3', // Tech UI Chirp
+  bug: 'https://assets.mixkit.co/active_storage/sfx/2358/2358-preview.mp3',  // Alert (Keep as is)
+  step: 'https://assets.mixkit.co/active_storage/sfx/2568/2568-preview.mp3', // Clean click
+  export: 'https://assets.mixkit.co/active_storage/sfx/3012/3012-preview.mp3', // Camera shutter
+  stop: 'https://assets.mixkit.co/active_storage/sfx/2569/2569-preview.mp3',   // Double Tech Click (Success)
 };
 
 // Singleton audio pool with pre-warmed instances
@@ -23,7 +23,7 @@ if (typeof window !== 'undefined') {
 
 export function playEffect(type: keyof typeof sounds) {
   if (typeof window === 'undefined') return;
-  
+
   try {
     const audio = audioPool[type];
     if (audio) {

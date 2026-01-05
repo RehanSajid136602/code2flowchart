@@ -37,46 +37,56 @@ export async function POST(req: Request) {
     const { model, modelName } = getDynamicConfig();
 
     const prompt = `
-      You are an expert software architect and flow analyst. 
-      Convert the following code into a flowchart JSON structure compatible with React Flow.
-      Using model: ${modelName}
+      You are an elite Software Architecture Visualizer. Your mission is to transform source code into a high-fidelity, BALANCED logic flowchart.
       
-      CODE:
+      TARGET CODE:
       """
       ${code}
       """
 
-      RULES:
-      1. MANDATORY SHAPE MAPPING:
-         - 'oval': Entry/Exit points of the function/script.
-         - 'rectangle': SEMANTIC PROCESS BLOCKS. Group related sequential lines (e.g., variable initializations, calculations) into a single logical node. Do NOT create a node for every line.
-         - 'diamond': Decisions and Loops. Use for 'if', 'else', 'for', 'while', 'switch'.
-         - 'parallelogram': I/O operations (logging, reading, writing).
-      2. LOGICAL ABSTRACTION:
-         - For large codes, prioritize high-level flow over micro-steps.
-         - Combine consecutive 'rectangle' steps into one node with a multi-line label if they are part of the same task.
-      3. ADVANCED LAYOUT STRATEGY:
-         - VERTICAL: Minimum layer gap of 220 units (y += 220) to allow for complex labels.
-         - HORIZONTAL BREADTH: 
-            - Main trunk: x = 500.
-            - Level 1 Branch: Offset +/- 350 units.
-            - Level 2+ Branch: Offset +/- 600 units to prevent overlap in nested logic.
-      4. Decision nodes MUST have exactly two outgoing edges with labels 'True' and 'False'.
-      5. Nodes must have unique string IDs and consistent edges.
+      STRICT VISUAL ARCHITECTURE RULES:
+      1. BALANCED TEXT DENSITY (Crucial):
+         - Keep labels descriptive but concise (roughly 10-15 words max).
+         - Icons/Emojis are mandatory prefixes for every node.
+         - Use short, impactful bullet points (•) only if necessary for clarity in sequential steps.
+         - Group operations into coherent semantic blocks that describe the "What" and "Why" without getting bogged down in implementation details.
 
-      OUTPUT FORMAT:
+      2. SHAPE SEMANTICS & MANDATORY NODES:
+         - 'oval': MUST include exactly one "🛫 Start" node at the beginning and exactly one "🏁 End" node at the very end of the logic flow.
+         - 'rectangle': ⚙️ Functional logic, processing, or data transformations.
+         - 'diamond': ⚖️ Decision points, validations, or branch logic.
+         - 'parallelogram': 📡 External I/O (Database, Network, Logs, UI).
+
+      3. SPATIAL ORCHESTRATION:
+         - ROOT: The "🛫 Start" node must be at x: 500, y: 0.
+         - VERTICAL DRIFT: Use a consistent +240 unit Y-increment.
+         - HORIZONTAL SPAN:
+           - Default/Main: x = 500.
+           - Left Branch: x = 200.
+           - Right Branch: x = 800.
+
+      OUTPUT SCHEMA (STRICT JSON):
       {
-        "nodes": [{"id": "1", "type": "oval", "data": {"label": "Start"}, "position": {"x": 250, "y": 0}}, ...],
-        "edges": [{"id": "e1-2", "source": "1", "target": "2", "label": ""}, ...]
+        "nodes": [
+          {
+            "id": "id",
+            "type": "oval | rectangle | diamond | parallelogram",
+            "data": { "label": "[Emoji] [Professional Title]\\n• [Key Step 1]\\n• [Key Step 2]" },
+            "position": { "x": 500, "y": 0 }
+          }
+        ],
+        "edges": [
+          { "id": "e-id", "source": "id1", "target": "id2", "label": "Semantic Label" }
+        ]
       }
 
-      Return ONLY the JSON. No markdown formatting, no explanations.
+      Return ONLY the raw JSON. No markdown backticks, no conversational text.
     `;
 
     const result = await model.generateContent(prompt);
     const response = await result.response;
     let text = response.text().trim();
-    
+
     if (text.startsWith("```json")) {
       text = text.replace(/```json|```/g, "").trim();
     }

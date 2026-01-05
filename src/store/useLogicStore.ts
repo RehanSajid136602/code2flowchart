@@ -8,15 +8,15 @@ import {
   NodeChange,
   EdgeChange,
 } from '@xyflow/react';
-import { LogicState, LogicNode } from '@/types';
+import { LogicState, LogicNode, Project, AnalysisDetails } from '@/types';
 import { playEffect } from '@/hooks/useSoundEffect';
 
 const initialNodes: LogicNode[] = [
   {
     id: '1',
     type: 'oval',
-    data: { label: 'Start', type: 'oval' },
-    position: { x: 250, y: 0 },
+    data: { label: '🛫 Start', type: 'oval' },
+    position: { x: 500, y: 0 },
   },
 ];
 
@@ -33,10 +33,12 @@ export const useLogicStore = create<LogicState>((set, get) => ({
   activeEdgeId: null,
   bugNodeIds: [],
   complexityData: null,
+  analysisDetails: null,
   lastModelUsed: null,
+  currentProjectId: null,
+  currentProjectName: null,
 
   onNodesChange: (changes: NodeChange<LogicNode>[]) => {
-    // Immediate state update but with optimized array handling
     set((state) => ({
       nodes: applyNodeChanges(changes, state.nodes),
     }));
@@ -84,13 +86,13 @@ export const useLogicStore = create<LogicState>((set, get) => ({
   setIsTracing: (isTracing: boolean) => {
     const { nodes } = get();
     const startNode = nodes[0]?.id || null;
-    set({ 
-      isTracing, 
-      currentStep: 0, 
+    set({
+      isTracing,
+      currentStep: 0,
       activeNodeId: isTracing ? startNode : null,
-      activeEdgeId: null
+      activeEdgeId: null,
     });
-    
+
     playEffect(isTracing ? 'step' : 'stop');
   },
 
@@ -107,11 +109,10 @@ export const useLogicStore = create<LogicState>((set, get) => ({
 
     // Find all outgoing edges
     const outgoingEdges = edges.filter((e) => e.source === activeNodeId);
-    
+
     if (outgoingEdges.length === 0) {
-      // End of flow
+      // Flow already naturally ended in the previous step's check
       set({ isTracing: false, activeNodeId: null, activeEdgeId: null });
-      playEffect('stop');
       return;
     }
 
@@ -119,27 +120,33 @@ export const useLogicStore = create<LogicState>((set, get) => ({
     let targetEdge = outgoingEdges[0];
     if (outgoingEdges.length > 1) {
       // Prioritize "True", "Yes", or labeled success paths
-      const trueEdge = outgoingEdges.find(e => {
-        const label = (e.label || "").toLowerCase();
-        return label.includes('true') || label.includes('yes') || label.includes('success');
+      const trueEdge = outgoingEdges.find((e) => {
+        // Edge.label can be ReactNode/unknown in @xyflow/react typings; coerce safely.
+        const label = String(e.label ?? '').toLowerCase();
+        return (
+          label.includes('true') ||
+          label.includes('yes') ||
+          label.includes('success')
+        );
       });
-      
-      if (trueEdge) {
-        targetEdge = trueEdge;
-      } else {
-        // Fallback to the first one if no explicit "true" label found
-        targetEdge = outgoingEdges[0];
-      }
+
+      targetEdge = trueEdge || outgoingEdges[0];
     }
 
     // Set ONLY the target node and edge as active
-    set({ 
-      activeNodeId: targetEdge.target, 
+    set({
+      activeNodeId: targetEdge.target,
       activeEdgeId: targetEdge.id,
-      currentStep: get().currentStep + 1 
+      currentStep: get().currentStep + 1,
     });
-    
-    playEffect('step');
+
+    // Smart Sound: If we reached the end node, play the 'stop' (success) sound immediately
+    const nextOutgoing = edges.filter((e) => e.source === targetEdge.target);
+    if (nextOutgoing.length === 0) {
+      playEffect('stop');
+    } else {
+      playEffect('step');
+    }
   },
 
   setActiveNodeId: (activeNodeId: string | null) => {
@@ -154,8 +161,41 @@ export const useLogicStore = create<LogicState>((set, get) => ({
     set({ complexityData });
   },
 
+  setAnalysisDetails: (analysisDetails: AnalysisDetails | null) => {
+    set({ analysisDetails });
+  },
+
   setLastModelUsed: (lastModelUsed: string | null) => {
     set({ lastModelUsed });
+  },
+
+  setCurrentProjectId: (currentProjectId: string | null) => {
+    set({ currentProjectId });
+  },
+
+  setCurrentProjectName: (currentProjectName: string | null) => {
+    set({ currentProjectName });
+  },
+
+  loadProject: (project: Project) => {
+    set({
+      currentProjectId: project.id,
+      currentProjectName: project.name,
+      code: project.code,
+      nodes: project.nodes,
+      edges: project.edges,
+      bugNodeIds: [],
+      complexityData: null,
+      analysisDetails: null,
+    });
+  },
+
+  applyFix: (fix: string) => {
+    const { code } = get();
+    // Intelligent insertion or append based on context could be complex.
+    // For now, we append the fix with a comment, or if it looks like a full replacement, we could handle it.
+    // Simplifying: AI provides a "fix" snippet, we append it for the user to integrate or replace parts.
+    set({ code: code + "\n\n// Suggested Fix:\n" + fix });
   },
 
   runAnalysis: async () => {
@@ -168,9 +208,13 @@ export const useLogicStore = create<LogicState>((set, get) => ({
       });
       if (response.ok) {
         const data = await response.json();
-        set({ 
-          bugNodeIds: data.bugNodeIds || [], 
-          complexityData: data.complexity || null 
+        set({
+          bugNodeIds: data.bugNodeIds || [],
+          complexityData: data.complexity || null,
+          analysisDetails: {
+            analysis: data.analysis,
+            suggestions: data.suggestions || [],
+          },
         });
       }
     } catch (error) {

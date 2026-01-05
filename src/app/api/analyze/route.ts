@@ -8,17 +8,34 @@ export async function POST(req: Request) {
     const { model, modelName } = getDynamicConfig();
 
     const prompt = `
-      Analyze this flowchart for logical bugs (dead ends, infinite loops, unreachable nodes).
+      Analyze this logic flowchart and its underlying code for logical bugs, efficiency issues, and algorithmic complexity.
+      
       Nodes: ${JSON.stringify(nodes)}
       Edges: ${JSON.stringify(edges)}
 
-      Return a JSON object:
+      CRITICAL TASKS:
+      1. Identify bugNodeIds: Nodes involved in deadlocks, infinite loops, or unreachable paths.
+      2. Provide detailed Analysis: A concise top-level summary of the logic's health.
+      3. Provide Suggestions: For each issue, explain the 'issue', give a 'suggestion', and provide an optional 'fix' (actual code snippets if the issue is in logic).
+      4. Estimate Complexity: Time and Space Big O notation.
+
+      RESPONSE FORMAT (STRICT JSON):
       {
         "bugNodeIds": ["id1", "id2"],
-        "analysis": "Brief explanation of bugs",
+        "analysis": "Top-level summary",
+        "suggestions": [
+          {
+            "nodeId": "1",
+            "title": "Infinite Loop Detected",
+            "issue": "The loop has no exit condition.",
+            "suggestion": "Add a counter or a break condition.",
+            "fix": "// Add this inside the loop\nif (count > 10) break;"
+          }
+        ],
         "complexity": {"time": "O(n)", "space": "O(1)"}
       }
-      Return ONLY the JSON.
+      
+      Return ONLY the raw JSON. No markdown backticks, no preamble.
     `;
 
     const result = await model.generateContent(prompt);
@@ -34,7 +51,7 @@ export async function POST(req: Request) {
     }
   } catch (error: any) {
     console.error("Analysis Error:", error);
-    return NextResponse.json({ 
+    return NextResponse.json({
       error: error.message || "Analysis failed",
       type: error.name || "Error"
     }, { status: 500 });
