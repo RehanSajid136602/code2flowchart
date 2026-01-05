@@ -1,7 +1,7 @@
 'use client'
 
 import React from 'react'
-import { ArrowRight, Code2, GitBranch, Save, Zap, AlertCircle } from 'lucide-react'
+import { ArrowRight, Code2, GitBranch, Save, Zap, AlertCircle, ArrowLeft } from 'lucide-react'
 
 const steps = [
   {
@@ -25,7 +25,7 @@ const steps = [
       'Click "New Project" to create a blank canvas',
       'Give your project a meaningful name',
       'Start typing your code in the editor',
-      'Watch the flowchart build in real-time',
+      'Watch as flowchart builds in real-time',
     ],
   },
   {
@@ -43,7 +43,7 @@ const steps = [
   {
     id: 4,
     title: 'Flowchart to Code',
-    description: 'Edit the diagram and generate working code',
+    description: 'Edit your diagram and generate working code',
     icon: <Code2 className="h-8 w-8" />,
     details: [
       'Drag and drop nodes to arrange your flow',
@@ -82,7 +82,7 @@ const tips = [
   'Use keyboard shortcuts for faster editing',
   'Create versions before making big changes',
   'Use the tracer to step through your logic',
-  'Check the history to see what changed',
+  'Check history to see what changed',
   'Export your projects as backup regularly',
 ]
 
@@ -90,11 +90,22 @@ export default function GuidePage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950">
       <div className="container mx-auto px-4 py-8 max-w-5xl">
-        <div className="mb-12">
-          <h1 className="text-5xl font-bold text-white mb-4">How to Use LogicFlow AI</h1>
-          <p className="text-slate-400 text-xl">
-            Your complete guide to creating code, building flowcharts, and harnessing the power of AI
-          </p>
+        <div className="mb-8">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-5xl font-bold text-white mb-2">How to Use LogicFlow AI</h1>
+              <p className="text-slate-400 text-xl">
+                Your complete guide to creating code, building flowcharts, and harnessing the power of AI
+              </p>
+            </div>
+            <button
+              onClick={() => window.location.href = '/'}
+              className="flex items-center gap-2 px-6 py-2.5 bg-slate-800 hover:bg-slate-700 text-white font-medium rounded-lg transition-all"
+            >
+              <ArrowLeft className="h-5 w-5" />
+              Back to Website
+            </button>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-12">
