@@ -1,7 +1,7 @@
 # GEMINI.md: LogicFlow Architect [2026 Build]
 
 ## 1. PROJECT OVERVIEW
-**LogicFlow** is a bidirectional visual programming environment that synchronizes high-level code with visual logic diagrams. It leverages the Gemini 1.5 Pro API to parse code into flowcharts and analyze diagrams for logical consistency, complexity, and bugs.
+**LogicFlow** is a bidirectional visualizes high-level code programming environment that synchron with visual logic diagrams. It leverages the Gemini 2.5 and 3 series APIs (including Flash and Pro models) to parse code into flowcharts and analyze diagrams for logical consistency, complexity, and bugs.
 
 ### Core Workflows:
 - **Code-to-Diagram:** Real-time synchronization using debounced updates that call Gemini-powered API routes to generate node/edge structures from raw code.
@@ -23,7 +23,7 @@
 - **Runtime:** Next.js API Routes (Node.js)
 - **Authentication:** Firebase Auth (Google & Email/Password)
 - **Persistence:** Firebase Firestore (`users/{userId}/projects/{projectId}`)
-- **AI Engine:** Dynamic Rotation (`gemini-2.5-flash`, `gemini-2.5-pro`, `gemini-2.5-flash-lite`)
+- **AI Engine:** Dynamic Rotation (`gemini-2.5-flash`, `gemini-2.5-pro`, `gemini-2.5-flash-lite`, `gemini-3-flash-preview`)
 - **Key Strategy:** Randomized Key & Model Pool
 - **Validation:** Zod
 
