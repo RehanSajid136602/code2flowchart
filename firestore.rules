@@ -1,0 +1,14 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Users' projects collection (scoped to authenticated user)
+    match /users/{userId}/projects/{projectId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+      // Basic field validation can be enforced at client/API layer; rules focus on access
+    }
+    // History subcollection under a project
+    match /users/{userId}/projects/{projectId}/history/{historyId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "projects",
+      "fields": [
+        { "fieldPath": "updatedAt", "order": "DESCENDING" },
+        { "fieldPath": "isDeleted", "order": "ASCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}

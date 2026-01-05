@@ -1,50 +1,67 @@
-import {
-    collection,
-    doc,
-    setDoc,
-    getDocs,
-    deleteDoc,
-    query,
-    orderBy,
-    Timestamp,
-    serverTimestamp
-} from 'firebase/firestore';
-import { getFirebaseFirestore } from './firebase';
-import { Project } from '@/types';
+import { Project } from '@/types'
 
 export async function saveProject(userId: string, project: Omit<Project, 'updatedAt'>) {
-    const db = getFirebaseFirestore();
-    if (!db) throw new Error('Firestore not initialized');
-
-    const projectRef = doc(db, 'users', userId, 'projects', project.id);
-    await setDoc(projectRef, {
-        ...project,
-        updatedAt: serverTimestamp(),
-    }, { merge: true });
+  const url = '/api/projects'
+  const payload = { userId, project }
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error((err as any)?.error ?? 'Failed to save project')
+  }
+  return (await res.json()) as Project
 }
 
-export async function getProjects(userId: string): Promise<Project[]> {
-    const db = getFirebaseFirestore();
-    if (!db) throw new Error('Firestore not initialized');
-
-    const projectsRef = collection(db, 'users', userId, 'projects');
-    const q = query(projectsRef, orderBy('updatedAt', 'desc'));
-    const querySnapshot = await getDocs(q);
-
-    return querySnapshot.docs.map(doc => {
-        const data = doc.data();
-        return {
-            ...data,
-            id: doc.id,
-            updatedAt: (data.updatedAt as Timestamp)?.toMillis() || Date.now(),
-        } as Project;
-    });
+export async function getProjects(userId: string, limit?: number, cursor?: string): Promise<{ projects: Project[]; nextCursor?: string }> {
+  const url = new URL('/api/projects', location.origin)
+  url.searchParams.set('userId', userId)
+  if (limit) url.searchParams.set('limit', String(limit))
+  if (cursor) url.searchParams.set('cursor', cursor)
+  const res = await fetch(url.toString())
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error((err as any)?.error ?? 'Failed to fetch projects')
+  }
+  return (await res.json()) as any
 }
 
-export async function deleteProject(userId: string, projectId: string) {
-    const db = getFirebaseFirestore();
-    if (!db) throw new Error('Firestore not initialized');
+export async function getProject(userId: string, projectId: string): Promise<Project> {
+  const url = new URL(`/api/projects/${projectId}`, location.origin)
+  url.searchParams.set('userId', userId)
+  const res = await fetch(url.toString())
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error((err as any)?.error ?? 'Failed to fetch project')
+  }
+  return (await res.json()) as Project
+}
 
-    const projectRef = doc(db, 'users', userId, 'projects', projectId);
-    await deleteDoc(projectRef);
+export async function updateProject(userId: string, projectId: string, updates: Partial<Project>): Promise<Project> {
+  const url = new URL(`/api/projects/${projectId}`, location.origin)
+  url.searchParams.set('userId', userId)
+  const res = await fetch(url.toString(), {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(updates)
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error((err as any)?.error ?? 'Failed to update project')
+  }
+  return (await res.json()) as Project
+}
+
+export async function deleteProject(userId: string, projectId: string, hard?: boolean) {
+  const url = new URL(`/api/projects/${projectId}`, location.origin)
+  url.searchParams.set('userId', userId)
+  if (hard) url.searchParams.set('hard', 'true')
+  const res = await fetch(url.toString(), { method: 'DELETE' })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error((err as any)?.error ?? 'Failed to delete project')
+  }
+  return (await res.json()) as any
 }
