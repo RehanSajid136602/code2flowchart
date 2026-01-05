@@ -30,6 +30,17 @@ export interface Project {
   nodes: LogicNode[];
   edges: Edge[];
   updatedAt: number;
+  isDeleted?: boolean;
+  deletedAt?: number;
+}
+
+export interface ProjectHistory {
+  id: string;
+  projectId: string;
+  action: 'create' | 'update' | 'delete' | 'restore';
+  changedBy: string;
+  changedAt: number;
+  previousValues?: Partial<Project>;
 }
 
 export interface LogicState {

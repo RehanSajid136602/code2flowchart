@@ -1,14 +1,40 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+    // Helper function to validate authenticated user matches path userId
+    function isOwner() {
+      return request.auth != null && request.auth.uid == userId;
+    }
+
     // Users' projects collection (scoped to authenticated user)
     match /users/{userId}/projects/{projectId} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
-      // Basic field validation can be enforced at client/API layer; rules focus on access
+      allow read: if isOwner();
+      allow create: if isOwner()
+        && request.resource.data.keys().hasAll(['id', 'name', 'code', 'nodes', 'edges', 'updatedAt', 'isDeleted'])
+        && request.resource.data.id == projectId
+        && request.resource.data.name is string
+        && request.resource.data.code is string
+        && request.resource.data.nodes is list
+        && request.resource.data.edges is list
+        && request.resource.data.updatedAt is number
+        && request.resource.data.isDeleted == false;
+      allow update: if isOwner()
+        && (!request.resource.data.keys().hasAny(['isDeleted', 'deletedAt']) || request.resource.data.isDeleted is bool)
+        && (!request.resource.data.keys().hasAny(['deletedAt']) || request.resource.data.deletedAt is number);
+      // Hard delete not allowed via client; use API with service account
+      allow delete: if false;
     }
+
     // History subcollection under a project
     match /users/{userId}/projects/{projectId}/history/{historyId} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+      allow read: if isOwner();
+      allow create: if isOwner()
+        && request.resource.data.keys().hasAll(['id', 'projectId', 'action', 'changedBy', 'changedAt'])
+        && request.resource.data.projectId == projectId
+        && request.resource.data.action in ['create', 'update', 'delete', 'restore']
+        && request.resource.data.changedBy is string
+        && request.resource.data.changedAt is number;
+      allow update, delete: if false;
     }
   }
 }

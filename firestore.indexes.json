@@ -6,6 +6,12 @@
         { "fieldPath": "updatedAt", "order": "DESCENDING" },
         { "fieldPath": "isDeleted", "order": "ASCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "history",
+      "fields": [
+        { "fieldPath": "changedAt", "order": "DESCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []

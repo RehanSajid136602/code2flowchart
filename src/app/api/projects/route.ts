@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { getAdminDb } from '../../../lib/firebaseAdmin'
-import { ProjectInputSchema } from '../../../validators/projectSchema'
+import { ProjectInputSchema, ProjectUpdateSchema } from '../../../validators/projectSchema'
 
 // GET /api/projects?userId=...&limit=...&cursor=...
 export async function GET(request: Request) {
@@ -13,24 +13,26 @@ export async function GET(request: Request) {
     }
 
     const limitParam = url.searchParams.get('limit')
-    const cursorId = url.searchParams.get('cursor')
+    const cursorParam = url.searchParams.get('cursor')
     const limit = limitParam ? Number(limitParam) : 20
+    if (Number.isNaN(limit) || limit <= 0) {
+      return NextResponse.json({ error: 'Invalid limit' }, { status: 400 })
+    }
 
+    // Cursor as numeric timestamp (milliseconds)
+    const cursor = cursorParam ? Number(cursorParam) : null
     const db: any = getAdminDb()
     const userProjectsRef = db.collection('users').doc(userId).collection('projects')
     let q: any = userProjectsRef.where('isDeleted', '==', false).orderBy('updatedAt', 'desc').limit(limit)
 
-    if (cursorId) {
-      const cursorDoc = await userProjectsRef.doc(cursorId).get()
-      if (cursorDoc.exists) {
-        q = q.startAfter(cursorDoc)
-      }
+    if (cursor != null && !Number.isNaN(cursor)) {
+      q = q.startAfter(cursor)
     }
 
     const snap = await q.get()
     const projects = snap.docs.map((d: any) => {
       const data = d.data()
-      const updatedAt = data?.updatedAt?.toMillis ? data.updatedAt.toMillis() : Date.now()
+      const updatedAt = data?.updatedAt?.toMillis ? data.updatedAt.toMillis() : data.updatedAt
       return {
         id: d.id,
         ...data,
@@ -38,7 +40,12 @@ export async function GET(request: Request) {
       }
     }) as any
 
-    const nextCursor = snap.size === limit ? snap.docs[snap.docs.length - 1].id : null
+    const lastDoc = snap.docs[snap.docs.length - 1]
+    const nextCursor = (snap.size === limit && lastDoc) ? (function () {
+      const data = lastDoc.data()
+      const updatedAt = data?.updatedAt?.toMillis ? data.updatedAt.toMillis() : data.updatedAt
+      return updatedAt
+    })() : null
     return NextResponse.json({ projects, nextCursor })
   } catch (err) {
     return NextResponse.json({ error: (err as Error).message }, { status: 500 })
@@ -57,7 +64,7 @@ export async function POST(request: Request) {
 
     const parsed = ProjectInputSchema.safeParse(project)
     if (!parsed.success) {
-      return NextResponse.json({ error: 'Validation error' }, { status: 422 })
+      return NextResponse.json({ error: 'Validation error', details: parsed.error.flatten() }, { status: 422 })
     }
 
     const db: any = getAdminDb()
