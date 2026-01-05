@@ -17,9 +17,55 @@ npx eslint --fix src/    # Auto-fix linting issues
 
 # Type checking (included in build)
 npx tsc --noEmit         # Run TypeScript compiler without emitting files
+
+# Testing
+npm test                 # Run all tests
+npm test -- filename     # Run specific test file
+npm test -- --watch     # Run tests in watch mode
+npm test -- --coverage  # Run tests with coverage report
 ```
 
-**No dedicated test framework is currently configured.** If adding tests, use Jest with React Testing Library. Run a single test file with `npm test -- filename.test.tsx`.
+## Testing Guidelines
+
+### Test Framework
+- **Framework**: Jest with React Testing Library
+- **Location**: `tests/` directory
+- **Pattern**: `*.test.(ts|tsx)`
+
+### Test Setup
+- `tests/setup.ts` - Global test configuration and mocks
+- `jest.config.ts` - Jest configuration
+
+### Writing Tests
+- Test files should mirror source file structure
+- Use descriptive test names
+- Group related tests with `describe` blocks
+- Test both success and error paths
+- Mock external dependencies (Firebase, fetch, etc.)
+
+### Example Test Structure
+```typescript
+describe('ComponentName', () => {
+  it('should render correctly', () => {
+    // test implementation
+  })
+
+  it('should handle user interaction', () => {
+    // test implementation
+  })
+})
+```
+
+### Coverage Requirements
+- Aim for 80%+ coverage on new code
+- Cover edge cases and error states
+- Test API error handling
+
+### Running Tests
+- Run all tests: `npm test`
+- Run specific file: `npm test -- tests/validators/projectSchema.test.ts`
+- Run with coverage: `npm test -- --coverage`
+- Watch mode: `npm test -- --watch`
 
 ## Code Style Guidelines
 
