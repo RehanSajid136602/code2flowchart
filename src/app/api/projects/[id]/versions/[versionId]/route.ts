@@ -1,26 +1,28 @@
 import { NextResponse } from 'next/server'
-import type { NextRequest } from 'next/server'
 import { getAdminDb, runTransaction } from '../../../../../../lib/firebaseAdmin'
+import { requireAuthWithUserId, createUnauthorizedResponse, createForbiddenResponse } from '@/lib/authMiddleware'
 
 function getUserIdFromRequest(request: Request): string | null {
   const url = new URL(request.url)
   return url.searchParams.get('userId')
 }
 
-// GET /api/projects/[id]/versions/[versionId]?userId=...
-export async function GET(request: Request, { params }: { params: { id: string; versionId: string } }) {
+export async function GET(request: Request, { params }: { params: Promise<{ id: string; versionId: string }> }) {
   try {
     const userId = getUserIdFromRequest(request)
     if (!userId) return NextResponse.json({ error: 'Missing userId' }, { status: 400 })
 
+    await requireAuthWithUserId(request, userId)
+
+    const resolvedParams = await params
     const db: any = getAdminDb()
     const versionRef = db
       .collection('users')
       .doc(userId)
       .collection('projects')
-      .doc(params.id)
+      .doc(resolvedParams.id)
       .collection('versions')
-      .doc(params.versionId)
+      .doc(resolvedParams.versionId)
 
     const doc = await versionRef.get()
     if (!doc.exists) {
@@ -30,20 +32,28 @@ export async function GET(request: Request, { params }: { params: { id: string; 
     const data = doc.data()
     const createdAt = data.createdAt?.toMillis ? data.createdAt.toMillis() : data.createdAt
     return NextResponse.json({ id: doc.id, ...data, createdAt })
-  } catch (err) {
+  } catch (err: any) {
+    if (err.message === 'UNAUTHORIZED') {
+      return createUnauthorizedResponse()
+    }
+    if (err.message === 'FORBIDDEN_USER_MISMATCH') {
+      return createForbiddenResponse('You can only access your own project versions')
+    }
     return NextResponse.json({ error: (err as Error).message }, { status: 500 })
   }
 }
 
-// POST /api/projects/[id]/versions/[versionId]/restore?userId=...
-export async function POST(request: Request, { params }: { params: { id: string; versionId: string } }) {
+export async function POST(request: Request, { params }: { params: Promise<{ id: string; versionId: string }> }) {
   try {
     const userId = getUserIdFromRequest(request)
     if (!userId) return NextResponse.json({ error: 'Missing userId' }, { status: 400 })
 
+    const auth = await requireAuthWithUserId(request, userId)
+
+    const resolvedParams = await params
     const db: any = getAdminDb()
-    const projectRef = db.collection('users').doc(userId).collection('projects').doc(params.id)
-    const versionRef = projectRef.collection('versions').doc(params.versionId)
+    const projectRef = db.collection('users').doc(userId).collection('projects').doc(resolvedParams.id)
+    const versionRef = projectRef.collection('versions').doc(resolvedParams.versionId)
 
     const [projectDoc, versionDoc] = await Promise.all([projectRef.get(), versionRef.get()])
 
@@ -72,9 +82,9 @@ export async function POST(request: Request, { params }: { params: { id: string;
       const historyRef = projectRef.collection('history').doc()
       transaction.set(historyRef, {
         id: historyRef.id,
-        projectId: params.id,
+        projectId: resolvedParams.id,
         action: 'restore',
-        changedBy: userId,
+        changedBy: auth.uid,
         changedAt: now,
         previousValues: {
           name: projectData.name,
@@ -87,10 +97,10 @@ export async function POST(request: Request, { params }: { params: { id: string;
       const restoreHistoryRef = versionRef.collection('history').doc()
       transaction.set(restoreHistoryRef, {
         id: restoreHistoryRef.id,
-        projectId: params.id,
-        versionId: params.versionId,
+        projectId: resolvedParams.id,
+        versionId: resolvedParams.versionId,
         action: 'restore',
-        restoredBy: userId,
+        restoredBy: auth.uid,
         restoredAt: now,
       })
     })
@@ -100,25 +110,33 @@ export async function POST(request: Request, { params }: { params: { id: string;
     const updatedAt = updatedData?.updatedAt?.toMillis ? updatedData.updatedAt.toMillis() : updatedData?.updatedAt
 
     return NextResponse.json({ id: updatedProject.id, ...updatedData, updatedAt })
-  } catch (err) {
+  } catch (err: any) {
+    if (err.message === 'UNAUTHORIZED') {
+      return createUnauthorizedResponse()
+    }
+    if (err.message === 'FORBIDDEN_USER_MISMATCH') {
+      return createForbiddenResponse('You can only restore your own project versions')
+    }
     return NextResponse.json({ error: (err as Error).message }, { status: 500 })
   }
 }
 
-// DELETE /api/projects/[id]/versions/[versionId]?userId=... - Hard delete a version
-export async function DELETE(request: Request, { params }: { params: { id: string; versionId: string } }) {
+export async function DELETE(request: Request, { params }: { params: Promise<{ id: string; versionId: string }> }) {
   try {
     const userId = getUserIdFromRequest(request)
     if (!userId) return NextResponse.json({ error: 'Missing userId' }, { status: 400 })
 
+    await requireAuthWithUserId(request, userId)
+
+    const resolvedParams = await params
     const db: any = getAdminDb()
     const versionRef = db
       .collection('users')
       .doc(userId)
       .collection('projects')
-      .doc(params.id)
+      .doc(resolvedParams.id)
       .collection('versions')
-      .doc(params.versionId)
+      .doc(resolvedParams.versionId)
 
     const doc = await versionRef.get()
     if (!doc.exists) {
@@ -127,7 +145,13 @@ export async function DELETE(request: Request, { params }: { params: { id: strin
 
     await versionRef.delete()
     return NextResponse.json({ success: true, deleted: true })
-  } catch (err) {
+  } catch (err: any) {
+    if (err.message === 'UNAUTHORIZED') {
+      return createUnauthorizedResponse()
+    }
+    if (err.message === 'FORBIDDEN_USER_MISMATCH') {
+      return createForbiddenResponse('You can only delete your own project versions')
+    }
     return NextResponse.json({ error: (err as Error).message }, { status: 500 })
   }
 }

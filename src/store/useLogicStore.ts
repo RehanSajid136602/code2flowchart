@@ -216,9 +216,12 @@ export const useLogicStore = create<LogicState>((set, get) => ({
             suggestions: data.suggestions || [],
           },
         });
+      } else {
+        const err = await response.json().catch(() => ({}));
+        console.error('Analysis failed with status:', response.status, err);
       }
     } catch (error) {
-      console.error('Analysis failed:', error);
+      console.error('Analysis network error:', error);
     }
   },
 }));

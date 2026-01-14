@@ -32,12 +32,16 @@ export interface Project {
   updatedAt: number;
   isDeleted?: boolean;
   deletedAt?: number;
+  shareId?: string;
+  isPublic?: boolean;
+  sharedBy?: string;
+  sharedAt?: number;
 }
 
 export interface ProjectHistory {
   id: string;
   projectId: string;
-  action: 'create' | 'update' | 'delete' | 'restore';
+  action: 'create' | 'update' | 'delete' | 'restore' | 'version';
   changedBy: string;
   changedAt: number;
   previousValues?: Partial<Project>;

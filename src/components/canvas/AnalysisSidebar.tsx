@@ -97,7 +97,7 @@ export default function AnalysisSidebar() {
 
                                             <div className="p-2.5 bg-black/40 rounded-lg mb-4">
                                                 <p className="text-[10px] text-blue-400 font-medium italic">
-                                                    " {s.suggestion} "
+                                                &quot; {s.suggestion} &quot;
                                                 </p>
                                             </div>
 

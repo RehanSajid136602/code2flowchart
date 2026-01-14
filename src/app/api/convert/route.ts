@@ -1,19 +1,38 @@
 import { NextResponse } from "next/server";
 import { getDynamicConfig } from "@/lib/gemini";
+import { ConvertRequestSchema } from "@/validators/aiRequestsSchema";
+import { verifyAuthToken } from "@/lib/authMiddleware";
+import { rateLimit, getClientIdentifier, createRateLimitResponse, applyRateLimitHeaders } from "@/lib/rateLimit";
+
+const AI_RATE_LIMIT = { maxRequests: 30, windowMs: 60000 };
 
 export async function POST(req: Request) {
   try {
-    const { nodes, edges, language, codingStyle, refinementPrompt } = await req.json();
+    const auth = await verifyAuthToken(req);
+    // Auth is now optional for Guest Mode
+    const isGuest = !auth;
 
-    if (!nodes || !language) {
-      return NextResponse.json({ error: "Nodes and language are required" }, { status: 400 });
+    const clientId = getClientIdentifier(req);
+    const rateLimitResult = rateLimit(clientId, AI_RATE_LIMIT);
+
+    if (!rateLimitResult.success) {
+      return createRateLimitResponse(rateLimitResult.resetTime!);
     }
+
+    const body = await req.json();
+    const parsed = ConvertRequestSchema.safeParse(body);
+
+    if (!parsed.success) {
+      return NextResponse.json({ error: "Invalid request data" }, { status: 400 });
+    }
+
+    const { nodes, edges, language, codingStyle, refinementPrompt } = parsed.data;
 
     const { model, modelName } = getDynamicConfig();
 
     const prompt = `
       You are an expert polyglot programmer specializing in high-quality, maintainable code.
-      
+
       Convert the following logic flowchart into idiomatic ${language} code.
 
       FLOWCHART DATA:
@@ -36,19 +55,20 @@ export async function POST(req: Request) {
     `;
 
     const result = await model.generateContent(prompt);
-    const response = await result.response;
-    let text = response.text().trim();
+    const aiResponse = await result.response;
+    let text = aiResponse.text().trim();
 
     if (text.startsWith("```")) {
       text = text.replace(/```[a-z]*|```/g, "").trim();
     }
 
-    return NextResponse.json({ code: text, modelUsed: modelName });
+    const jsonResponse = NextResponse.json({ code: text, modelUsed: modelName });
+    return applyRateLimitHeaders(jsonResponse, rateLimitResult.remaining!, rateLimitResult.resetTime!);
   } catch (error: any) {
     console.error("Convert Error:", error);
     return NextResponse.json({
-      error: error.message || "Failed to convert logic",
-      type: error.name || "Error"
+      error: "The logic-to-code synthesis engine encountered an error.",
+      details: error?.message
     }, { status: 500 });
   }
 }

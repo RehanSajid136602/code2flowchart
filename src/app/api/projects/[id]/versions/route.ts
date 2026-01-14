@@ -1,17 +1,18 @@
 import { NextResponse } from 'next/server'
-import type { NextRequest } from 'next/server'
 import { getAdminDb, runTransaction } from '../../../../../lib/firebaseAdmin'
+import { requireAuthWithUserId, createUnauthorizedResponse, createForbiddenResponse } from '@/lib/authMiddleware'
 
 function getUserIdFromRequest(request: Request): string | null {
   const url = new URL(request.url)
   return url.searchParams.get('userId')
 }
 
-// GET /api/projects/[id]/versions?userId=...
-export async function GET(request: Request, { params }: { params: { id: string } }) {
+export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const userId = getUserIdFromRequest(request)
     if (!userId) return NextResponse.json({ error: 'Missing userId' }, { status: 400 })
+
+    const auth = await requireAuthWithUserId(request, userId)
 
     const url = new URL(request.url)
     const limitParam = url.searchParams.get('limit')
@@ -20,12 +21,13 @@ export async function GET(request: Request, { params }: { params: { id: string }
       return NextResponse.json({ error: 'Invalid limit' }, { status: 400 })
     }
 
+    const resolvedParams = await params
     const db: any = getAdminDb()
     const versionsRef = db
       .collection('users')
       .doc(userId)
       .collection('projects')
-      .doc(params.id)
+      .doc(resolvedParams.id)
       .collection('versions')
       .orderBy('version', 'desc')
       .limit(limit)
@@ -42,22 +44,29 @@ export async function GET(request: Request, { params }: { params: { id: string }
     })
 
     return NextResponse.json({ versions })
-  } catch (err) {
+  } catch (err: any) {
+    if (err.message === 'UNAUTHORIZED') {
+      return createUnauthorizedResponse()
+    }
+    if (err.message === 'FORBIDDEN_USER_MISMATCH') {
+      return createForbiddenResponse('You can only access your own project versions')
+    }
     return NextResponse.json({ error: (err as Error).message }, { status: 500 })
   }
 }
 
-// POST /api/projects/[id]/versions - Create a new version snapshot
-export async function POST(request: Request, { params }: { params: { id: string } }) {
+export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const userId = getUserIdFromRequest(request)
     if (!userId) return NextResponse.json({ error: 'Missing userId' }, { status: 400 })
 
+    const auth = await requireAuthWithUserId(request, userId)
     const body = await request.json()
     const { description } = body as { description?: string }
 
+    const resolvedParams = await params
     const db: any = getAdminDb()
-    const projectRef = db.collection('users').doc(userId).collection('projects').doc(params.id)
+    const projectRef = db.collection('users').doc(userId).collection('projects').doc(resolvedParams.id)
     const projectDoc = await projectRef.get()
 
     if (!projectDoc.exists) {
@@ -74,14 +83,14 @@ export async function POST(request: Request, { params }: { params: { id: string 
 
     const versionData = {
       id: versionRef.id,
-      projectId: params.id,
+      projectId: resolvedParams.id,
       version: newVersionNumber,
       name: projectData.name,
       code: projectData.code,
       nodes: projectData.nodes,
       edges: projectData.edges,
       createdAt: now,
-      createdBy: userId,
+      createdBy: auth.uid,
       description: description || `Version ${newVersionNumber}`,
     }
 
@@ -90,16 +99,22 @@ export async function POST(request: Request, { params }: { params: { id: string 
       const historyRef = projectRef.collection('history').doc()
       transaction.set(historyRef, {
         id: historyRef.id,
-        projectId: params.id,
+        projectId: resolvedParams.id,
         action: 'version',
-        changedBy: userId,
+        changedBy: auth.uid,
         changedAt: now,
         previousValues: { version: newVersionNumber },
       })
     })
 
     return NextResponse.json(versionData, { status: 201 })
-  } catch (err) {
+  } catch (err: any) {
+    if (err.message === 'UNAUTHORIZED') {
+      return createUnauthorizedResponse()
+    }
+    if (err.message === 'FORBIDDEN_USER_MISMATCH') {
+      return createForbiddenResponse('You can only create versions for your own projects')
+    }
     return NextResponse.json({ error: (err as Error).message }, { status: 500 })
   }
 }

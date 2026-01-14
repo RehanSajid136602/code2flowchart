@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { importUserDataFromJson, importUserDataFromBlob, validateBackupData } from '../../../../lib/backup'
+import { requireAuthWithUserId, createUnauthorizedResponse, createForbiddenResponse } from '@/lib/authMiddleware'
 
 export async function POST(request: Request) {
   try {
@@ -15,6 +16,8 @@ export async function POST(request: Request) {
     if (!['rename', 'skip', 'overwrite'].includes(onConflict)) {
       return NextResponse.json({ error: 'Invalid onConflict value. Use rename, skip, or overwrite' }, { status: 400 })
     }
+
+    await requireAuthWithUserId(request, userId)
 
     const contentType = request.headers.get('content-type') || ''
 
@@ -41,7 +44,13 @@ export async function POST(request: Request) {
       skipped: result.skipped,
       errors: result.errors,
     })
-  } catch (err) {
+  } catch (err: any) {
+    if (err.message === 'UNAUTHORIZED') {
+      return createUnauthorizedResponse()
+    }
+    if (err.message === 'FORBIDDEN_USER_MISMATCH') {
+      return createForbiddenResponse('You can only import data to your own account')
+    }
     return NextResponse.json({ error: (err as Error).message }, { status: 500 })
   }
 }

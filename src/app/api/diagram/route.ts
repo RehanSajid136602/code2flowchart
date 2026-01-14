@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getDynamicConfig } from "@/lib/gemini";
+import { DiagramRequestSchema } from "@/validators/aiRequestsSchema";
+import { verifyAuthToken } from "@/lib/authMiddleware";
+import { rateLimit, getClientIdentifier, createRateLimitResponse, applyRateLimitHeaders } from "@/lib/rateLimit";
 
 const NodeSchema = z.object({
   id: z.string(),
@@ -26,19 +29,34 @@ const ResponseSchema = z.object({
   edges: z.array(EdgeSchema),
 });
 
+const AI_RATE_LIMIT = { maxRequests: 30, windowMs: 60000 };
+
 export async function POST(req: Request) {
   try {
-    const { code } = await req.json();
+    const auth = await verifyAuthToken(req);
+    // Auth is now optional for diagram generation to support Guest Mode
+    const isGuest = !auth;
 
-    if (!code) {
-      return NextResponse.json({ error: "Code is required" }, { status: 400 });
+    const clientId = getClientIdentifier(req);
+    const rateLimitResult = rateLimit(clientId, AI_RATE_LIMIT);
+
+    if (!rateLimitResult.success) {
+      return createRateLimitResponse(rateLimitResult.resetTime!);
     }
 
+    const body = await req.json();
+    const parsed = DiagramRequestSchema.safeParse(body);
+
+    if (!parsed.success) {
+      return NextResponse.json({ error: "Invalid request data" }, { status: 400 });
+    }
+
+    const { code } = parsed.data;
     const { model, modelName } = getDynamicConfig();
 
     const prompt = `
       You are an elite Software Architecture Visualizer. Your mission is to transform source code into a high-fidelity, BALANCED logic flowchart.
-      
+
       TARGET CODE:
       """
       ${code}
@@ -84,29 +102,32 @@ export async function POST(req: Request) {
     `;
 
     const result = await model.generateContent(prompt);
-    const response = await result.response;
-    let text = response.text().trim();
+    const aiResponse = await result.response;
+    let text = aiResponse.text().trim();
 
     if (text.startsWith("```json")) {
       text = text.replace(/```json|```/g, "").trim();
+    } else if (text.startsWith("```")) {
+      text = text.replace(/```[a-z]*|```/g, "").trim();
     }
 
     try {
-      const parsed = JSON.parse(text);
-      const validated = ResponseSchema.parse(parsed);
-      return NextResponse.json({ ...validated, modelUsed: modelName });
-    } catch (e: any) {
+      const parsedJson = JSON.parse(text);
+      const validated = ResponseSchema.parse(parsedJson);
+      const jsonResponse = NextResponse.json({ ...validated, modelUsed: modelName });
+      return applyRateLimitHeaders(jsonResponse, rateLimitResult.remaining!, rateLimitResult.resetTime!);
+    } catch (parseError: any) {
+      console.error("AI Response Parse Error:", parseError, "Text:", text);
       return NextResponse.json({
-        error: "Invalid AI response format",
-        details: e.message,
-        raw: text
-      }, { status: 500 });
+        error: "High-performance AI returned incompatible logical structures. Please refine your logic.",
+        details: parseError.message
+      }, { status: 422 });
     }
   } catch (error: any) {
     console.error("API Error:", error);
     return NextResponse.json({
-      error: error.message || "Failed to generate diagram",
-      type: error.name || "Error"
-    }, { status: 500 });
+      error: error?.message === 'UNAUTHORIZED' ? 'Please sign in to access advanced features' : "The logic engine encountered a synchronization failure.",
+      details: error?.message
+    }, { status: error?.message === 'UNAUTHORIZED' ? 401 : 500 });
   }
 }

@@ -25,8 +25,8 @@ export default function ProjectsModal({ isOpen, onClose }: ProjectsModalProps) {
         if (!user) return;
         setLoading(true);
         try {
-            const data = await getProjects(user.uid);
-            setProjects(data);
+            const { projects } = await getProjects(user.uid);
+            setProjects(projects);
         } catch (error) {
             console.error('Failed to fetch projects:', error);
         } finally {

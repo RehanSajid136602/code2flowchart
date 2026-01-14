@@ -15,9 +15,10 @@ import '@xyflow/react/dist/style.css';
 
 import { useLogicStore } from '@/store/useLogicStore';
 import { OvalNode, RectangleNode, DiamondNode, ParallelogramNode } from './CustomNodes';
-import { Play, SkipForward, RotateCcw, Bug, FileDown, BrainCircuit, Activity, Target } from 'lucide-react';
-import { toPng } from 'html-to-image';
+import { Play, SkipForward, RotateCcw, Bug, FileDown, BrainCircuit, Activity, Target, Image, FileText, Copy, Database } from 'lucide-react';
+import { toPng, toSvg } from 'html-to-image';
 import { jsPDF } from 'jspdf';
+import html2canvas from 'html2canvas';
 import { motion, AnimatePresence } from 'framer-motion';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
@@ -105,7 +106,7 @@ function FlowInner() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [runAnalysis]);
 
-  const handleExport = async () => {
+  const handleExportPng = async () => {
     const element = document.querySelector('.react-flow__viewport') as HTMLElement;
     if (!element) return;
 
@@ -157,6 +158,89 @@ function FlowInner() {
       playEffect('export');
     } catch (error) {
       console.error('PDF Export failed:', error);
+    }
+  };
+
+  const handleExportSvg = async () => {
+    const element = document.querySelector('.react-flow__viewport') as HTMLElement;
+    if (!element) return;
+
+    try {
+      playEffect('sync');
+      const dataUrl = await toSvg(element, {
+        quality: 1,
+        style: {
+          transform: 'scale(1)',
+          transformOrigin: 'top left',
+        },
+      });
+
+      const blob = await (await fetch(dataUrl)).blob();
+      const url = URL.createObjectURL(blob);
+
+      const link = document.createElement('a');
+      link.download = `logicflow-${Date.now()}.svg`;
+      link.href = url;
+      link.click();
+
+      URL.revokeObjectURL(url);
+      playEffect('export');
+    } catch (error) {
+      console.error('SVG Export failed:', error);
+    }
+  };
+
+  const handleExportJson = () => {
+    try {
+      playEffect('sync');
+      const data = JSON.stringify({ nodes, edges }, null, 2);
+      const blob = new Blob([data], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+
+      const link = document.createElement('a');
+      link.download = `logicflow-${Date.now()}.json`;
+      link.href = url;
+      link.click();
+
+      URL.revokeObjectURL(url);
+      playEffect('export');
+    } catch (error) {
+      console.error('JSON Export failed:', error);
+    }
+  };
+
+  const handleCopyAsImage = async () => {
+    const element = document.querySelector('.react-flow__viewport') as HTMLElement;
+    if (!element) return;
+
+    try {
+      playEffect('sync');
+      const canvas = await html2canvas(element, {
+        backgroundColor: '#0a0a0a',
+        scale: 2,
+        logging: false,
+        useCORS: true,
+      });
+
+      canvas.toBlob(async (blob) => {
+        if (!blob) {
+          throw new Error('Failed to create image from canvas');
+        }
+
+        try {
+          await navigator.clipboard.write([
+            new ClipboardItem({ 'image/png': blob })
+          ]);
+          playEffect('export');
+          alert('Image copied to clipboard!');
+        } catch (error) {
+          console.error('Failed to copy to clipboard:', error);
+          alert('Failed to copy to clipboard. Your browser may not support this feature.');
+        }
+      });
+    } catch (error) {
+      console.error('Copy as image failed:', error);
+      alert('Failed to copy as image. Please try again.');
     }
   };
 
@@ -240,25 +324,58 @@ function FlowInner() {
                 <FileDown size={14} /> Export
               </button>
 
-              <AnimatePresence>
+               <AnimatePresence>
                 {showExportMenu && (
                   <motion.div
                     initial={{ opacity: 0, y: 10, scale: 0.95 }}
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                    className="absolute right-0 mt-2 w-40 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl overflow-hidden z-[100]"
+                    className="absolute right-0 mt-2 w-44 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl overflow-hidden z-[100]"
                   >
                     <button
-                      onClick={() => { handleExport(); setShowExportMenu(false); }}
-                      className="w-full px-4 py-2.5 text-left text-xs text-slate-300 hover:bg-slate-800 hover:text-white transition-colors flex items-center justify-between"
+                      onClick={() => { handleExportPng(); setShowExportMenu(false); }}
+                      className="w-full px-4 py-2.5 text-left text-xs text-slate-300 hover:bg-slate-800 hover:text-white transition-colors flex items-center justify-between gap-2"
                     >
-                      Image (PNG)
+                      <span className="flex items-center gap-2">
+                        <Image size={14} /> Image (PNG)
+                      </span>
+                      <span className="text-[10px] text-slate-500">High quality</span>
                     </button>
                     <button
                       onClick={() => { handleExportPdf(); setShowExportMenu(false); }}
-                      className="w-full px-4 py-2.5 text-left text-xs text-slate-300 hover:bg-slate-800 hover:text-white transition-colors border-t border-slate-800 flex items-center justify-between"
+                      className="w-full px-4 py-2.5 text-left text-xs text-slate-300 hover:bg-slate-800 hover:text-white transition-colors border-t border-slate-800 flex items-center justify-between gap-2"
                     >
-                      Document (PDF)
+                      <span className="flex items-center gap-2">
+                        <FileText size={14} /> Document (PDF)
+                      </span>
+                      <span className="text-[10px] text-slate-500">Print-ready</span>
+                    </button>
+                    <button
+                      onClick={() => { handleExportSvg(); setShowExportMenu(false); }}
+                      className="w-full px-4 py-2.5 text-left text-xs text-slate-300 hover:bg-slate-800 hover:text-white transition-colors border-t border-slate-800 flex items-center justify-between gap-2"
+                    >
+                      <span className="flex items-center gap-2">
+                        <FileDown size={14} /> Vector (SVG)
+                      </span>
+                      <span className="text-[10px] text-slate-500">Scalable</span>
+                    </button>
+                    <button
+                      onClick={() => { handleExportJson(); setShowExportMenu(false); }}
+                      className="w-full px-4 py-2.5 text-left text-xs text-slate-300 hover:bg-slate-800 hover:text-white transition-colors border-t border-slate-800 flex items-center justify-between gap-2"
+                    >
+                      <span className="flex items-center gap-2">
+                        <Database size={14} /> Data (JSON)
+                      </span>
+                      <span className="text-[10px] text-slate-500">Backup</span>
+                    </button>
+                    <button
+                      onClick={() => { handleCopyAsImage(); setShowExportMenu(false); }}
+                      className="w-full px-4 py-2.5 text-left text-xs text-slate-300 hover:bg-slate-800 hover:text-white transition-colors border-t border-slate-800 flex items-center justify-between gap-2"
+                    >
+                      <span className="flex items-center gap-2">
+                        <Copy size={14} /> Copy as Image
+                      </span>
+                      <span className="text-[10px] text-slate-500">Clipboard</span>
                     </button>
                   </motion.div>
                 )}

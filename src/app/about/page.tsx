@@ -132,7 +132,7 @@ export default function AboutPage() {
               At LogicFlow AI, we believe that great software should be intuitive, powerful, and accessible. Our mission is to bridge the gap between code and visual understanding, making it easier for developers of all skill levels to create, understand, and optimize complex logic.
             </p>
             <p>
-              We leverage cutting-edge AI technology to provide real-time analysis, bug detection, and smart suggestions, helping you write better code faster. Whether you're building algorithms, designing workflows, or documenting logic, LogicFlow AI is your intelligent companion.
+              We leverage cutting-edge AI technology to provide real-time analysis, bug detection, and smart suggestions, helping you write better code faster. Whether you&apos;re building algorithms, designing workflows, or documenting logic, LogicFlow AI is your intelligent companion.
             </p>
           </div>
         </div>

@@ -1,5 +1,17 @@
-# Firebase Admin SDK Configuration Guide
-# Add these to your .env.local file for server-side operations
+# Firebase Configuration Guide
+# Add these to your .env.local file for complete Firebase setup
+
+# === Client-side Configuration (for browser authentication) ===
+# LogicFlow project configuration
+NEXT_PUBLIC_FIREBASE_API_KEY=AIzaSyBsI6i5erDkWUkDXkWCvNVD2ou8DmgQvss
+NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=logicflow-8c020.firebaseapp.com
+NEXT_PUBLIC_FIREBASE_PROJECT_ID=logicflow-8c020
+NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=logicflow-8c020.firebasestorage.app
+NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=1015694834540
+NEXT_PUBLIC_FIREBASE_APP_ID=1:1015694834540:web:07b68639c4cdd32ab81149
+NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID=G-4NEXH968XE
+
+# === Server-side Configuration (for Admin SDK) ===
 
 # Get these from Firebase Console > Project Settings > Service Accounts
 # Generate a new private key and paste the JSON content below

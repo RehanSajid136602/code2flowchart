@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { getBackupMetadata, exportUserDataAsJson, exportUserDataAsBlob } from '../../../lib/backup'
+import { requireAuthWithUserId, createUnauthorizedResponse, createForbiddenResponse } from '@/lib/authMiddleware'
 
 export async function GET(request: Request) {
   try {
@@ -12,6 +13,8 @@ export async function GET(request: Request) {
     if (!userId) {
       return NextResponse.json({ error: 'Missing userId' }, { status: 400 })
     }
+
+    await requireAuthWithUserId(request, userId)
 
     if (metadataOnly) {
       const metadata = await getBackupMetadata(userId)
@@ -37,7 +40,13 @@ export async function GET(request: Request) {
         'Content-Disposition': `attachment; filename="backup-${userId}-${Date.now()}.json"`,
       },
     })
-  } catch (err) {
+  } catch (err: any) {
+    if (err.message === 'UNAUTHORIZED') {
+      return createUnauthorizedResponse()
+    }
+    if (err.message === 'FORBIDDEN_USER_MISMATCH') {
+      return createForbiddenResponse('You can only backup your own data')
+    }
     return NextResponse.json({ error: (err as Error).message }, { status: 500 })
   }
 }

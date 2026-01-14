@@ -19,6 +19,7 @@ export const metadata: Metadata = {
 };
 
 import GlobalDialog from "@/components/ui/GlobalDialog";
+import GlobalNav from "@/components/navigation/GlobalNav";
 
 export default function RootLayout({
   children,
@@ -32,6 +33,7 @@ export default function RootLayout({
       >
         <QueryProvider>
           <GlobalDialog />
+          <GlobalNav />
           {children}
         </QueryProvider>
       </body>

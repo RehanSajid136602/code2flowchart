@@ -1,11 +1,14 @@
-import { collection, doc, setDoc, getDocs, deleteDoc, query, orderBy, Timestamp, serverTimestamp } from 'firebase/firestore'
+import { collection, doc, getDoc, setDoc, getDocs, deleteDoc, query, orderBy, Timestamp, serverTimestamp, where } from 'firebase/firestore'
 import { getFirebaseFirestore } from './firebase'
 import { ProjectInputSchema, ProjectUpdateSchema } from '@/validators/projectSchema'
 import { Project, ProjectHistory } from '@/types'
 
 export async function saveProject(userId: string, project: Omit<Project, 'updatedAt'>) {
+  if (!userId) throw new Error('Cannot save: User ID is missing')
+  if (!project.id) throw new Error('Cannot save: Project ID is missing')
+
   const db = getFirebaseFirestore()
-  if (!db) throw new Error('Firestore not initialized')
+  if (!db) throw new Error('Firestore not initialized. Please check your connection.')
 
   const projectRef = doc(db, 'users', userId, 'projects', project.id)
   const historyRef = doc(projectRef, 'history', crypto.randomUUID())
@@ -41,11 +44,11 @@ export async function getProjects(userId: string, limit?: number, cursor?: numbe
 
   const snap = await getDocs(q)
   const projects = snap.docs.map(doc => {
-    const data = doc.data()
+    const data = doc.data() as any || {}
     return {
       id: doc.id,
       ...data,
-      updatedAt: data?.updatedAt?.toMillis() || data?.updatedAt || Date.now(),
+      updatedAt: data?.updatedAt?.toMillis?.() || data?.updatedAt || Date.now(),
     } as Project
   })
 
@@ -66,7 +69,7 @@ export async function getProject(userId: string, projectId: string): Promise<Pro
     throw new Error('Project not found')
   }
 
-  const data = docSnap.data()
+  const data = docSnap.data() || {}
   return {
     id: docSnap.id,
     ...data,
@@ -85,7 +88,7 @@ export async function updateProject(userId: string, projectId: string, updates: 
     throw new Error('Project not found')
   }
 
-  const previousData = docSnap.data()
+  const previousData = docSnap.data() || {}
 
   await setDoc(projectRef, {
     ...updates,
@@ -101,6 +104,8 @@ export async function updateProject(userId: string, projectId: string, updates: 
     changedAt: Timestamp.now(),
     previousValues: previousData as Partial<Project>,
   })
+
+  return getProject(userId, projectId)
 }
 
 export async function deleteProject(userId: string, projectId: string, hard?: boolean) {
@@ -157,7 +162,7 @@ export async function restoreProject(userId: string, projectId: string): Promise
     throw new Error('Project not found')
   }
 
-  const data = docSnap.data()
+  const data = docSnap.data() || {}
   const previousData = { isDeleted: data?.isDeleted, deletedAt: data?.deletedAt }
 
   await setDoc(projectRef, {
@@ -175,6 +180,8 @@ export async function restoreProject(userId: string, projectId: string): Promise
     changedAt: Timestamp.now(),
     previousValues: previousData as Partial<Project>,
   })
+
+  return getProject(userId, projectId)
 }
 
 export async function getProjectHistory(userId: string, projectId?: string): Promise<ProjectHistory[]> {
@@ -185,16 +192,18 @@ export async function getProjectHistory(userId: string, projectId?: string): Pro
   if (projectId) {
     q = query(collection(db, 'users', userId, 'projects', projectId, 'history'), orderBy('changedAt', 'desc'))
   } else {
-    q = query(collection(db, 'users', userId, 'projects', 'projectId'), where('projectId', '==', projectId), orderBy('changedAt', 'desc'))
+    // Global history across all projects requires a Collection Group query 
+    // or iterating projects. Returning empty for now to prevent path errors.
+    return []
   }
 
   const snap = await getDocs(q)
   return snap.docs.map(doc => {
-    const data = doc.data()
+    const data = doc.data() as any || {}
     return {
       id: doc.id,
       ...data,
-      changedAt: data?.changedAt?.toMillis() || data?.changedAt || Date.now(),
+      changedAt: data?.changedAt?.toMillis?.() || data?.changedAt || Date.now(),
     } as ProjectHistory
   })
 }

@@ -11,6 +11,7 @@ import {
   updateProfile,
 } from 'firebase/auth';
 import { getFirebaseAuth } from '@/lib/firebase';
+import { getAuthErrorMessage } from './authErrorHandler';
 
 async function ensureAuthConfigured() {
   const auth = getFirebaseAuth();
@@ -70,35 +71,21 @@ export async function signUpWithEmail(params: {
   const { email, password, displayName } = params;
   const trimmedEmail = email.trim();
 
-  try {
-    const cred = await createUserWithEmailAndPassword(auth, trimmedEmail, password);
+  const cred = await createUserWithEmailAndPassword(auth, trimmedEmail, password);
 
-    if (displayName) {
-      await updateProfile(cred.user, { displayName });
-    }
-
-    await sendEmailVerification(cred.user);
-
-    return cred;
-  } catch (e: any) {
-    if (e?.code === 'auth/invalid-credential') {
-      throw new Error('The credentials provided are invalid or have expired.');
-    }
-    throw e;
+  if (displayName) {
+    await updateProfile(cred.user, { displayName });
   }
+
+  await sendEmailVerification(cred.user);
+
+  return cred;
 }
 
 export async function signInWithEmail(params: { email: string; password: string }) {
   await ensureAuthConfigured();
   const auth = requireAuth();
-  try {
-    return await signInWithEmailAndPassword(auth, params.email.trim(), params.password);
-  } catch (e: any) {
-    if (e?.code === 'auth/invalid-credential') {
-      throw new Error('Invalid email or password. Please check your credentials and try again.');
-    }
-    throw e;
-  }
+  return await signInWithEmailAndPassword(auth, params.email.trim(), params.password);
 }
 
 export async function resendVerificationEmail() {

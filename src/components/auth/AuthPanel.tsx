@@ -11,6 +11,7 @@ import {
   signInWithGoogle,
   signUpWithEmail,
 } from '@/lib/authActions';
+import { getAuthErrorMessage } from '@/lib/authErrorHandler';
 
 export default function AuthPanel() {
   const { user, loading } = useAuth();
@@ -34,7 +35,8 @@ export default function AuthPanel() {
     try {
       await fn();
     } catch (e: any) {
-      setError(e?.message || 'Something went wrong');
+      const userMessage = getAuthErrorMessage(e);
+      setError(userMessage);
     } finally {
       setBusy(false);
     }

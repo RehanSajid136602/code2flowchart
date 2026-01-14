@@ -12,8 +12,8 @@ export function useAuth() {
   useEffect(() => {
     const auth = getFirebaseAuth();
     if (!auth) {
-      setLoading(false);
-      return;
+      const timer = setTimeout(() => setLoading(false), 0);
+      return () => clearTimeout(timer);
     }
 
     const unsub = onAuthStateChanged(auth, (u) => {

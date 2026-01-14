@@ -91,7 +91,7 @@ const NodeWrapper = ({ children, selected, active, hasBug, className, data }: { 
               </div>
             ) : (
               <p className="text-xs text-slate-300 leading-relaxed font-serif italic">
-                "{explanation}"
+                &quot;{explanation}&quot;
               </p>
             )}
             <div className="mt-2 text-[8px] text-slate-500 text-center">Click to close</div>

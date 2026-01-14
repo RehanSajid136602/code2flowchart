@@ -6,7 +6,6 @@ import { useRouter } from 'next/navigation';
 import CodeEditor from '@/components/editor/CodeEditor';
 import FlowCanvas from '@/components/canvas/FlowCanvas';
 import { Play, Share2, Zap, RefreshCw, Bug, Save, History, BookOpen, Info } from 'lucide-react';
-import { useSyncLogic } from '@/hooks/useSyncLogic';
 import { useLogicStore } from '@/store/useLogicStore';
 import { useSoundEffect } from '@/hooks/useSoundEffect';
 import LanguageSelector from '@/components/LanguageSelector';
@@ -16,6 +15,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useDialogStore } from '@/store/useDialogStore';
 import { saveProject } from '@/lib/projectActions';
 import RefineModal from '@/components/RefineModal';
+import ShareModal from '@/components/ShareModal';
 
 export default function Home() {
   const router = useRouter();
@@ -42,21 +42,22 @@ export default function Home() {
   } = useLogicStore();
   const { showDialog } = useDialogStore();
 
-  // Redirect unauth users to /login
+  // Guest Mode allowed
   useEffect(() => {
     if (!loading && !user) {
-      const next = encodeURIComponent('/');
-      router.replace(`/login?next=${next}`);
+      console.log('Guest session active');
     }
-  }, [loading, user, router]);
+  }, [loading, user]);
 
   useEffect(() => {
     if (isSyncing) playSound('sync');
-  }, [isSyncing]);
+  }, [isSyncing, playSound]);
 
   useEffect(() => {
     if (bugNodeIds.length > 0) playSound('bug');
-  }, [bugNodeIds]);
+  }, [bugNodeIds, playSound]);
+
+
 
   // Hoisted store-derived values to avoid inline hook calls in JSX
   const bugCount = bugNodeIds.length;
@@ -68,9 +69,23 @@ export default function Home() {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isRefineOpen, setIsRefineOpen] = useState(false);
+  const [isShareOpen, setIsShareOpen] = useState(false);
+  const [isPublic, setIsPublic] = useState(false);
+  const [shareUrl, setShareUrl] = useState('');
 
   const handleSave = async () => {
-    if (!user) return;
+    if (!user) {
+      showDialog({
+        type: 'confirm',
+        title: 'Authentication Required',
+        message: 'To save your logic architectures to the cloud, please sign in using your Google account or Email and Password.',
+        confirmLabel: 'Sign In / Sign Up',
+        onConfirm: () => {
+          router.push(`/login?next=${encodeURIComponent('/')}`);
+        }
+      });
+      return;
+    }
 
     const executeSave = async (name: string) => {
       setIsSaving(true);
@@ -93,12 +108,12 @@ export default function Home() {
           title: 'Project Saved',
           message: `"${name}" has been successfully synchronized to your cloud workspace.`,
         });
-      } catch (error) {
+      } catch (error: any) {
         console.error('Save failed:', error);
         showDialog({
           type: 'error',
           title: 'Save Failed',
-          message: 'An unexpected error occurred while preserving your project. Please verify your connection.',
+          message: error?.message || 'An unexpected error occurred while preserving your project. Please verify your connection.',
         });
       } finally {
         setIsSaving(false);
@@ -143,9 +158,20 @@ export default function Home() {
         setCode(data.code);
         setIsRefineOpen(false);
         playSound('sync');
+      } else {
+        const err = await response.json().catch(() => ({}));
+        console.error('Conversion failed:', {
+          status: response.status,
+          payload: err
+        });
+        showDialog({
+          type: 'error',
+          title: 'Synthesis Error',
+          message: err.error || 'The code synthesis engine encountered a logic jump. Please refine your flowchart and try again.',
+        });
       }
     } catch (error) {
-      console.error('Conversion failed:', error);
+      console.error('Conversion network error:', error);
     } finally {
       setIsConverting(false);
     }
@@ -156,6 +182,82 @@ export default function Home() {
     await runAnalysis();
     setIsAnalyzing(false);
   };
+
+  const handleShare = async (action: 'share' | 'unshare') => {
+    if (!user || !currentProjectId) return;
+
+    try {
+      const response = await fetch(`/api/projects/${currentProjectId}?userId=${user.uid}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.shareUrl) {
+          setShareUrl(data.shareUrl);
+          setIsPublic(true);
+        } else {
+          setShareUrl('');
+          setIsPublic(false);
+        }
+        playSound('sync');
+      }
+    } catch (error) {
+      console.error('Share failed:', error);
+      showDialog({
+        type: 'error',
+        title: 'Share Failed',
+        message: 'Failed to update sharing settings. Please try again.',
+      });
+    }
+  };
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const activeElement = document.activeElement;
+      const isInput = activeElement?.tagName === 'INPUT' ||
+        activeElement?.tagName === 'TEXTAREA' ||
+        activeElement?.classList.contains('monaco-editor') ||
+        (activeElement as HTMLElement)?.isContentEditable;
+
+      if (isInput) return;
+
+      if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+        e.preventDefault();
+        runAnalysis();
+      }
+
+      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+        e.preventDefault();
+        handleSave();
+      }
+
+      if ((e.ctrlKey || e.metaKey) && e.key === 'e') {
+        e.preventDefault();
+        setIsRefineOpen(true);
+      }
+
+      if ((e.ctrlKey || e.metaKey) && e.key === 'h') {
+        e.preventDefault();
+        if (!user) {
+          showDialog({
+            type: 'confirm',
+            title: 'Authentication Required',
+            message: 'To share your logic workflows, please sign in using your Google account or Email and Password.',
+            confirmLabel: 'Sign In',
+            onConfirm: () => router.push(`/login?next=${encodeURIComponent('/')}`)
+          });
+        } else {
+          setIsShareOpen(true);
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [runAnalysis, handleSave, setIsRefineOpen, setIsShareOpen]);
 
   const handleBuildFlowchart = async () => {
     if (!code || code.trim().length < 5) {
@@ -182,12 +284,17 @@ export default function Home() {
         setLastModelUsed(data.modelUsed);
         playSound('sync');
       } else {
-        const err = await response.json();
-        console.error('API Error:', err);
+        const err = await response.json().catch(() => ({}));
+        console.error('API Error Detail:', {
+          status: response.status,
+          statusText: response.statusText,
+          payload: err
+        });
+
         showDialog({
           type: 'error',
-          title: 'Architectural Error',
-          message: err.error || 'The AI engine encountered a logical contradiction while parsing your code.',
+          title: response.status === 429 ? 'Rate Limit Exceeded' : 'Architectural Error',
+          message: err.error || err.details || 'The AI engine encountered a synchronization failure. Please verify your logic or try again later.',
         });
       }
     } catch (error) {
@@ -195,7 +302,7 @@ export default function Home() {
       showDialog({
         type: 'error',
         title: 'Connection Interrupted',
-        message: 'LogicFlow could not reach the high-performance AI cluster. Please check your network status.',
+        message: 'LogicFlow could not reach high-performance AI cluster. Please check your network status.',
       });
     } finally {
       setIsSyncing(false);
@@ -232,11 +339,14 @@ export default function Home() {
     autoStep();
   };
 
-  // While redirecting, show nothing (or a minimal loader)
-  if (loading || !user) {
+  // While loading auth state, show a minimal loader
+  if (loading) {
     return (
       <div className="min-h-screen bg-[#050505] flex items-center justify-center text-slate-400">
-        Loading…
+        <div className="flex flex-col items-center gap-4">
+          <RefreshCw className="w-8 h-8 animate-spin text-blue-500" />
+          <span className="text-sm font-medium animate-pulse">Initializing LogicFlow...</span>
+        </div>
       </div>
     );
   }
@@ -335,13 +445,43 @@ export default function Home() {
             )}
             {isSyncing ? 'Building...' : 'Build Flowchart'}
           </button>
-          <button className="p-2 text-slate-400 hover:text-white transition-colors">
+          <button
+            onClick={() => {
+              if (!user) {
+                showDialog({
+                  type: 'confirm',
+                  title: 'Sharing Restricted',
+                  message: 'Public sharing and collaborative links require an active LogicFlow account. Sign in using your Google account or Email and Password to continue.',
+                  confirmLabel: 'Sign In Now',
+                  onConfirm: () => router.push(`/login?next=${encodeURIComponent('/')}`)
+                });
+              } else if (!currentProjectId) {
+                showDialog({
+                  type: 'warning',
+                  title: 'Project Not Saved',
+                  message: 'Please save your current architecture to the cloud before generating a sharing link.',
+                });
+              } else {
+                setIsShareOpen(true);
+              }
+            }}
+            className="p-2 text-slate-400 hover:text-white transition-colors"
+          >
             <Share2 className="w-5 h-5" />
           </button>
 
           <div className="h-4 w-px bg-slate-800" />
 
-          <UserMenu />
+          {user ? (
+            <UserMenu />
+          ) : (
+            <button
+              onClick={() => router.push('/auth')}
+              className="flex items-center gap-2 px-4 py-1.5 bg-slate-800 hover:bg-slate-700 rounded-full text-sm font-medium text-white transition-all border border-slate-700"
+            >
+              Sign In
+            </button>
+          )}
         </nav>
       </header>
 
@@ -385,6 +525,16 @@ export default function Home() {
         onClose={() => setIsRefineOpen(false)}
         onConvert={handleConvert}
         isConverting={isConverting}
+      />
+
+      <ShareModal
+        isOpen={isShareOpen}
+        onClose={() => setIsShareOpen(false)}
+        projectId={currentProjectId || ''}
+        projectName={currentProjectName || 'Untitled Project'}
+        isPublic={isPublic}
+        shareUrl={shareUrl}
+        onShare={handleShare}
       />
     </main>
   );
