@@ -183,8 +183,8 @@ export default function Home() {
     setIsAnalyzing(false);
   };
 
-  const handleShare = async (action: 'share' | 'unshare') => {
-    if (!user || !currentProjectId) return;
+  const handleShare = async (action: 'share' | 'unshare'): Promise<{ shareUrl?: string }> => {
+    if (!user || !currentProjectId) return {};
 
     try {
       const response = await fetch(`/api/projects/${currentProjectId}?userId=${user.uid}`, {
@@ -203,7 +203,9 @@ export default function Home() {
           setIsPublic(false);
         }
         playSound('sync');
+        return data;
       }
+      return {};
     } catch (error) {
       console.error('Share failed:', error);
       showDialog({
@@ -211,6 +213,7 @@ export default function Home() {
         title: 'Share Failed',
         message: 'Failed to update sharing settings. Please try again.',
       });
+      return {};
     }
   };
 
